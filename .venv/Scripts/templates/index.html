@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Magic Leap 2 Dateneingabe</title>
+    <style>
+        body { font-family: sans-serif; }
+        label { display: block; margin-bottom: 5px; }
+        input[type="text"] { width: 100%; padding: 5px; margin-bottom: 10px; box-sizing: border-box; }
+        button { padding: 10px 20px; background-color: #4CAF50; color: white; border: none; cursor: pointer; }
+        #message { margin-top: 10px; font-weight: bold; }
+        .error {color: red;}
+        .success {color: green;}
+    </style>
+</head>
+<body>
+    <h1>Magic Leap 2 Dateneingabe</h1>
+
+    <form id="myForm">
+        <label for="language">Language:</label>
+        <select id="language" name="language">
+            <option value="English" {% if data.language == 'English' %}selected{% endif %}>English</option>
+            <option value="German" {% if data.language == 'German' %}selected{% endif %}>German</option>
+            <option value="French" {% if data.language == 'French' %}selected{% endif %}>French</option>
+            <option value="Russian" {% if data.language == 'Russian' %}selected{% endif %}>Russian</option>
+            <option value="Spanish" {% if data.language == 'Spanish' %}selected{% endif %}>Spanish</option>
+        </select><br>
+
+        <label for="joystick">Show/unshow Joystick:</label>
+        <input type="text" id="joystick" name="joystick" value="{{ data.joystick }}"><br>
+
+        <label for="lights">Toggle lights:</label>
+        <input type="text" id="lights" name="lights" value="{{ data.lights }}"><br>
+
+        <label for="warn">Toggle warninglights:</label>
+        <input type="text" id="warn" name="warn" value="{{ data.warn }}"><br>
+
+        <label for="hornOn">Horn on:</label>
+        <input type="text" id="hornOn" name="hornOn" value="{{ data.hornOn }}"><br>
+
+        <label for="hornOff">Horn off:</label>
+        <input type="text" id="hornOff" name="hornOff" value="{{ data.hornOff }}"><br>
+
+        <label for="kantelungOn">Kantelung on:</label>
+        <input type="text" id="kantelungOn" name="kantelungOn" value="{{ data.kantelungOn }}"><br>
+
+        <label for="kantelungOff">Kantelung off:</label>
+        <input type="text" id="kantelungOff" name="kantelungOff" value="{{ data.kantelungOff }}"><br>
+
+        <label for="gearUp">Gear up:</label>
+        <input type="text" id="gearUp" name="gearUp" value="{{ data.gearUp }}"><br>
+
+        <label for="gearDown">Gear down:</label>
+        <input type="text" id="gearDown" name="gearDown" value="{{ data.gearDown }}"><br>
+
+        <button type="button" onclick="saveData()">Speichern</button>
+    </form>
+
+    <div id="message"></div>
+
+    <script>
+        function saveData() {
+            const form = document.getElementById('myForm');
+            const formData = new FormData(form);
+            const messageDiv = document.getElementById('message');
+
+            fetch('/save', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log(data);
+                if(data.success){
+                  messageDiv.textContent = data.message + (data.output ? "\nOutput:\n" + data.output: "");
+                  messageDiv.className = "success";
+                }
+                else{
+                  messageDiv.textContent = data.message + (data.output ? "\nOutput:\n" + data.output: "");
+                  messageDiv.className = "error";
+                }
+
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                messageDiv.textContent = 'Ein Fehler ist aufgetreten: ' + error;
+                messageDiv.className = "error";
+            });
+        }
+    </script>
+</body>
+</html>
