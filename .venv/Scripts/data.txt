@@ -1,0 +1,10 @@
+socke
+licht
+warnen
+hupe an
+hupe aus
+sitz an
+sitz aus
+schneller
+langsamer
+German
