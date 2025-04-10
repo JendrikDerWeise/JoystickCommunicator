@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, redirect, url_for
 import subprocess
 import os
 
@@ -9,6 +9,21 @@ DATA_FILE_PI = "data.txt"
 # Pfad zur Datei auf der Magic Leap 2 (anpassen!)
 DATA_FILE_ML2 = '/storage/emulated/0/Android/data/de.IMC.EyeJoystick/files/data.txt'
 init_commands={"steuerung","licht","warnblinker","hupe an","hupe aus","sitz an", "sitz aus","schneller","langsamer"}
+
+@app.before_request
+def check_for_captive_portal():
+    # Hostname, unter dem der Pi im Hotspot erreichbar ist
+    expected_host = "192.168.4.1"
+    # Erlaube auch den Zugriff über localhost oder den Standard-Flask-Hostnamen für lokale Tests
+    allowed_hosts = [expected_host, "localhost", "127.0.0.1"]
+
+    # request.host enthält den Hostnamen *ohne* Port
+    if request.host.split(':')[0] not in allowed_hosts:
+        # Wenn der angefragte Host nicht der erwartete ist,
+        # leite auf die Startseite unter der korrekten IP um.
+        print(f"Captive portal redirect triggered for host: {request.host}") #Debug-Ausgabe
+        return redirect(url_for('index', _external=True, _scheme='http', _host=expected_host))
+# --- Ende NEU ---
 
 @app.route("/")
 def index():
