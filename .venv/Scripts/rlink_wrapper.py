@@ -8,7 +8,7 @@ import enum # Nützlich für die Repräsentation der Enums in Python
 # Da die Zielplattform Linux (RPi5) ist, suchen wir nach .so
 # Passe diesen Pfad entsprechend an, wo deine kompilierte librlink.so liegt.
 # Beispiel: Erwarte 'librlink.so' im selben Verzeichnis wie das Skript
-LIB_FILENAME = '~/projekte/JoystickCommunicator/.venv/Scripts/lib/libMspRlink.so'
+LIB_FILENAME = '/home/jendrik/projekte/JoystickCommunicator/.venv/Scripts/lib/libMspRlink.so'
 # Versuche, den Pfad relativ zum Skript zu finden
 # Du kannst dies durch einen absoluten Pfad ersetzen, falls nötig:
 # LIB_PATH = '/pfad/zu/deiner/librlink.so'
