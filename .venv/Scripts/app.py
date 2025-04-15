@@ -19,7 +19,7 @@ def check_for_captive_portal():
 
     # --- Verbessertes Logging ---
     host_received = request.host.split(':')[0]
-    app.logger.info(f"Request received for host: {request.host} -> Parsed host: {host_received}")
+    #app.logger.info(f"Request received for host: {request.host} -> Parsed host: {host_received}")
     # --- Ende Verbessertes Logging ---
 
     # --- Versuch einer robusteren Bedingung ---
@@ -137,4 +137,4 @@ def save_data():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=80, debug=True) # Port 80 für direkten Zugriff
+    app.run(host="0.0.0.0", port=80, debug=False) # Port 80 für direkten Zugriff
