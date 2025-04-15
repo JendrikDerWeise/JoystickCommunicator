@@ -266,36 +266,86 @@ def thread_wheelchair_logic(rlink: MspRlink, outgoing_data_ref: OutgoingData):
 
 
 def thread_main_polling_logic(rlink: MspRlink, incoming_data: IncomingData):
-    """Pollt RLink auf Statusänderungen und Daten (unverändert)."""
-    # ... (Code aus der Konsolen-Version kann hierhin kopiert werden) ...
+    """Pollt RLink auf Statusänderungen und Daten."""
     print("Main polling thread started.")
     while not quit_event.is_set():
         try:
+            # 1. Statusflags abrufen
             flags = rlink.get_status_flags()
+
+            # 2. Fehler / Disconnect prüfen
             if flags & MSP_RLINK_EV_ERROR:
                 print("\nMain Thread: RLink error flag detected!", file=sys.stderr)
-                latest_err = rlink.get_latest_error(); print(f" -> Latest RLink Error: {latest_err.name}", file=sys.stderr)
-                quit_event.set(); break
+                latest_err = rlink.get_latest_error()
+                print(f" -> Latest RLink Error: {latest_err.name}", file=sys.stderr)
+                quit_event.set()
+                break
             if flags & MSP_RLINK_EV_DISCONNECTED:
                 print("\nMain Thread: RLink disconnected flag detected!", file=sys.stderr)
-                quit_event.set(); break
+                quit_event.set()
+                break
+
+            # 3. Daten abrufen, wenn Flag gesetzt
             if flags & MSP_RLINK_EV_DATA_READY:
+                # print("DEBUG: Data Ready flag set, fetching data...", flush=True)
                 with incoming_data.lock:
                     try:
-                        (incoming_data.oon, incoming_data.status, incoming_data.warning) = rlink.get_device_status()
-                        incoming_data.mode = rlink.get_mode(); incoming_data.profile = rlink.get_profile()
-                        (incoming_data.inputProcess, ..., incoming_data.selOutput) = rlink.get_hms() # Gekürzt
+                        # --- Hier sind die expandierten Zeilen ---
+                        (incoming_data.oon,
+                         incoming_data.status,
+                         incoming_data.warning) = rlink.get_device_status()
+
+                        incoming_data.mode = rlink.get_mode()
+                        incoming_data.profile = rlink.get_profile()
+
+                        (incoming_data.inputProcess,
+                         incoming_data.interProcess,
+                         incoming_data.outputProcess,
+                         incoming_data.selInput,
+                         incoming_data.selInter,
+                         incoming_data.selOutput) = rlink.get_hms() # <- Vollständig
+
                         incoming_data.horn = rlink.get_horn()
-                        (incoming_data.batt_low, ...) = rlink.get_battery_info() # Gekürzt
-                        (incoming_data.m1Vel, ...) = rlink.get_velocity() # Gekürzt
-                        (incoming_data.speed, ...) = rlink.get_speed() # Gekürzt
+
+                        (incoming_data.batt_low,
+                         incoming_data.batt_gauge,
+                         incoming_data.batt_current) = rlink.get_battery_info() # <- Vollständig
+
+                        (incoming_data.m1Vel,
+                         incoming_data.m2Vel,
+                         incoming_data.turnVel) = rlink.get_velocity() # <- Vollständig
+
+                        (incoming_data.speed,
+                         incoming_data.trueSpeed,
+                         incoming_data.speedLimitApplied) = rlink.get_speed() # <- Vollständig
+                        # --- Ende der expandierten Zeilen ---
+
+                        # Licht-Status abrufen (war bereits vollständig)
                         for i in range(MSP_RLINK_LIGHT_NOF):
-                            active, lit = rlink.get_light(RLinkLight(i))
-                            incoming_data.lights[i]['active'] = active; incoming_data.lights[i]['lit'] = lit
-                    except RLinkError as e: print(f"\nMain Thread: Error retrieving data: {e}", file=sys.stderr); quit_event.set(); break
-        except RLinkError as e: print(f"\nMain Thread: Error checking status: {e}", file=sys.stderr); quit_event.set(); break
-        except Exception as e: print(f"\nMain Thread: Unexpected error: {e}", file=sys.stderr); quit_event.set(); break
+                             active, lit = rlink.get_light(RLinkLight(i))
+                             incoming_data.lights[i]['active'] = active
+                             incoming_data.lights[i]['lit'] = lit
+
+                    except RLinkError as e:
+                         print(f"\nMain Thread: Error retrieving data: {e}", file=sys.stderr)
+                         # Fehler beim Datenabruf könnte kritisch sein
+                         quit_event.set()
+                         break
+            # else:
+            #     print("DEBUG: No data ready flag.", flush=True)
+
+        except RLinkError as e:
+            print(f"\nMain Thread: Error checking status: {e}", file=sys.stderr)
+            quit_event.set()
+            break
+        except Exception as e:
+            print(f"\nMain Thread: Unexpected error: {e}", file=sys.stderr)
+            quit_event.set()
+            break
+
+        # Pause vor dem nächsten Poll
         time.sleep(LOOP_MAIN_POLL_SLEEP)
+
     print("Main polling thread finished.")
 
 
