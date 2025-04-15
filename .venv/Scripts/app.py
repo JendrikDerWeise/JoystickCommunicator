@@ -16,6 +16,7 @@ def check_for_captive_portal():
     expected_host = "192.168.4.1"
     # Erlaube auch den Zugriff über localhost oder den Standard-Flask-Hostnamen für lokale Tests
     allowed_hosts = [expected_host, "localhost", "127.0.0.1"]
+    print(f"Request received for host: {request.host}")  # <-- WICHTIGES LOGGING
 
     # request.host enthält den Hostnamen *ohne* Port
     if request.host.split(':')[0] not in allowed_hosts:
