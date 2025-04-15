@@ -4,223 +4,392 @@
 import time
 import threading
 import sys
+import os # Für Berechtigungsprüfung
 
 # Importiere die benötigten Klassen und Konstanten aus deinem Wrapper
 try:
-    from rlink_wrapper import (MspRlink, RLinkError, RLinkButton, RLinkLight,
-                               RLinkAxisId, RLinkAxisDir, RLinkErrorType,
-                               # Füge ggf. weitere benötigte Enums/Konstanten hinzu
-                              )
+    from rlink_wrapper import (
+        MspRlink, RLinkError, RLinkButton, RLinkLight,
+        RLinkAxisId, RLinkAxisDir, RLinkErrorType, RLinkDevStatus,
+        MSP_RLINK_LIGHT_NOF # Sicherstellen, dass diese Konstante importiert wird
+        # Füge ggf. weitere benötigte Enums/Konstanten hinzu
+    )
 except ImportError:
-    print("Fehler: Konnte 'rlink_wrapper.py' nicht finden.")
-    print("Stelle sicher, dass die Datei im selben Verzeichnis liegt oder im PYTHONPATH.")
+    print("Fehler: Konnte 'rlink_wrapper.py' nicht finden.", file=sys.stderr)
+    print("Stelle sicher, dass die Datei im selben Verzeichnis liegt oder im PYTHONPATH.", file=sys.stderr)
     sys.exit(1)
 
-# Versuche, pynput zu importieren
+# Versuche, evdev zu importieren
 try:
-    from pynput import keyboard
+    import evdev
+    from evdev import InputDevice, categorize, ecodes
 except ImportError:
-    print("Fehler: Die Bibliothek 'pynput' wurde nicht gefunden.")
-    print("Bitte installiere sie mit: pip install pynput")
+    print("Fehler: Die Bibliothek 'evdev' wurde nicht gefunden.", file=sys.stderr)
+    print("Bitte installiere sie mit: pip3 install evdev", file=sys.stderr)
     sys.exit(1)
 
 # --- Konfiguration ---
-LOOP_SLEEP_TIME = 0.05  # Sekunden Pause in der Hauptschleife (ca. 20 Hz Update-Rate)
-HEARTBEAT_INTERVAL = 0.5 # Sekunden zwischen Heartbeats
+LOOP_WHEELCHAIR_SLEEP = 0.04  # Sekunden Pause im Wheelchair-Thread (ca. 25 Hz)
+LOOP_MAIN_POLL_SLEEP = 0.10   # Sekunden Pause im Main-Polling-Thread (ca. 10 Hz)
+HEARTBEAT_INTERVAL = 0.5      # Sekunden zwischen Heartbeats
 MOVEMENT_SPEED = 100     # Max. Wert für X/Y Achse (Bereich -127 bis 127)
 
-# --- Globale Zustandsvariablen ---
-# Diese werden vom Keyboard-Listener-Thread modifiziert und vom Haupt-Thread gelesen.
-# Das ist in Python dank des GIL (Global Interpreter Lock) meist unproblematisch für einfache Typen.
-keys_pressed = set()
-horn_on = False
-lights_on = False # Zustand für das Hauptlicht (z.B. Abblendlicht)
-running = True    # Flag zum Beenden der Hauptschleife
+# --- Key Mappings für evdev ---
+# Füge bei Bedarf weitere Tasten hinzu
+KEY_MAP = {
+    ecodes.KEY_W: 'w',
+    ecodes.KEY_A: 'a',
+    ecodes.KEY_S: 's',
+    ecodes.KEY_D: 'd',
+    ecodes.KEY_H: 'h',
+    ecodes.KEY_L: 'l',
+    ecodes.KEY_Q: 'q',
+    ecodes.KEY_ESC: 'esc',
+}
 
-# --- Keyboard Listener Callbacks ---
+# --- Globale Zustandsvariablen / Events ---
+pressed_keys = set()          # Hält die aktuell gedrückten Tasten (aus KEY_MAP Werten)
+outgoing_data = None          # Wird in main initialisiert (enthält OutgoingData Objekt)
+quit_event = threading.Event() # Wird gesetzt, um alle Threads zu beenden
+# Locks werden innerhalb der OutgoingData/IncomingData Klassen verwendet
 
-def on_press(key):
-    """Wird aufgerufen, wenn eine Taste gedrückt wird."""
-    global horn_on, lights_on, running
+# --- Datenstrukturen für geteilten Zustand (wie zuvor) ---
+class IncomingData:
+    # ... (Keine Änderungen gegenüber der Konsolen-Version) ...
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.oon = False; self.status = RLinkDevStatus.CONFIGURING; self.warning = 0
+        self.mode = RLinkMode.MODE_1; self.profile = RLinkProfile.PROFILE_1
+        self.inputProcess = 0; self.interProcess = 0; self.outputProcess = 0
+        self.selInput = False; self.selInter = False; self.selOutput = False
+        self.horn = False; self.batt_low = False; self.batt_gauge = 0; self.batt_current = 0.0
+        self.m1Vel = 0.0; self.m2Vel = 0.0; self.turnVel = 0.0
+        self.speed = 0; self.trueSpeed = 0.0; self.speedLimitApplied = 0
+        self.lights = [{'active': False, 'lit': False} for _ in range(MSP_RLINK_LIGHT_NOF)]
+
+class OutgoingData:
+    # ... (Keine Änderungen gegenüber der Konsolen-Version) ...
+     def __init__(self):
+        self.lock = threading.Lock()
+        self.x = 0; self.y = 0; self.btn = False
+        self.lights = [False] * MSP_RLINK_LIGHT_NOF
+        self.horn = False; self.axis0 = RLinkAxisDir.NONE; self.error = 0
+
+# --- Hilfsfunktionen ---
+def find_keyboard_device():
+    """Sucht automatisch nach einem Tastaturgerät."""
+    devices = [InputDevice(path) for path in evdev.list_devices()]
+    for device in devices:
+        capabilities = device.capabilities(verbose=False)
+        if ecodes.EV_KEY in capabilities:
+            # Prüfe auf Buchstaben-Tasten, um sicherzugehen, dass es eine Tastatur ist
+            has_keys = any(code in KEY_MAP for code in capabilities[ecodes.EV_KEY])
+            if has_keys:
+                print(f"Tastatur gefunden: {device.path} ({device.name})")
+                return device.path
+    return None
+
+# --- Thread-Funktionen ---
+
+def thread_keyboard_logic(outgoing_data_ref: OutgoingData):
+    """Liest Tastaturereignisse mit evdev und aktualisiert Zustände."""
+    global pressed_keys, quit_event # Zugriff auf globale Variablen
+
+    print("Keyboard thread started.")
+    device_path = find_keyboard_device()
+
+    if not device_path:
+        print("Fehler: Keine Tastatur gefunden. Stelle sicher, dass eine angeschlossen ist.", file=sys.stderr)
+        quit_event.set() # Signal zum Beenden an andere Threads
+        return
 
     try:
-        # Füge normale Tasten zum Set hinzu
-        keys_pressed.add(key.char.lower())
+        device = InputDevice(device_path)
+        print(f"Verwende Tastatur: {device.path}")
+    except OSError as e:
+        print(f"Fehler beim Öffnen von {device_path}: {e}", file=sys.stderr)
+        if e.errno == 13: # Permission denied
+             print("-> Keine Berechtigung. Führe das Skript mit 'sudo' aus", file=sys.stderr)
+             print("   oder füge deinen Benutzer zur Gruppe 'input' hinzu:", file=sys.stderr)
+             print(f"   sudo usermod -a -G input {os.getlogin()}", file=sys.stderr)
+             print("   (Danach neu einloggen!)", file=sys.stderr)
+        quit_event.set()
+        return
 
-        # Spezielle Tastenbehandlung (Toggles, Quit)
-        char = key.char.lower()
-        if char == 'h':
-            horn_on = not horn_on # Horn-Zustand umschalten
-            print(f"Hupe {'AN' if horn_on else 'AUS'}")
-            # Direkter Aufruf hier ist möglich, aber besser im Hauptloop für Konsistenz
-        elif char == 'l':
-            lights_on = not lights_on # Licht-Zustand umschalten
-            print(f"Licht {'AN' if lights_on else 'AUS'}")
-            # Direkter Aufruf hier ist möglich, aber besser im Hauptloop
-        elif char == 'q': # Alternative zum Beenden
-             print("Beenden durch 'q'...")
-             running = False
-
-    except AttributeError:
-        # Spezielle Tasten (Shift, Strg, Esc, etc.)
-        if key == keyboard.Key.esc:
-            print("Beenden durch ESC...")
-            running = False
-        # Füge spezielle Tasten (falls relevant) hinzu, z.B. key.name
-        # keys_pressed.add(key.name)
-
-def on_release(key):
-    """Wird aufgerufen, wenn eine Taste losgelassen wird."""
+    # Exklusiven Zugriff auf das Gerät anfordern (optional, aber empfohlen)
     try:
-        keys_pressed.remove(key.char.lower())
-    except (AttributeError, KeyError):
-        # Spezielle Tasten oder Taste war nicht im Set
-        pass
-        # if key.name in keys_pressed:
-        #     keys_pressed.remove(key.name)
+        device.grab()
+        print("Tastatur exklusiv erfasst (grabbed). Andere Anwendungen erhalten keine Eingaben mehr.")
 
-# --- Hauptfunktion ---
+        # Ereignis-Schleife
+        for event in device.read_loop():
+            if quit_event.is_set(): # Prüfe, ob das Beenden signalisiert wurde
+                break
 
-def main():
-    global running, horn_on, lights_on # Zugriff auf globale Zustände
+            if event.type == ecodes.EV_KEY:
+                key_event = categorize(event)
+                key_code = key_event.scancode
+                key_name = KEY_MAP.get(key_code) # Übersetze Code in unseren Namen (w, a, s, d...)
+                key_state = key_event.keystate # 0=UP, 1=DOWN, 2=HOLD
 
-    rlink = None # RLink Instanz
-    listener = None # Keyboard Listener
+                # print(f"DEBUG Key: {key_event.keycode}, State: {key_state}, Mapped: {key_name}") # Zum Debuggen
 
-    try:
-        print("Suche nach RLink Geräten...")
-        devices = MspRlink.enumerate_devices()
+                if key_name:
+                    if key_state == key_event.key_down or key_state == key_event.key_hold:
+                        # Taste gedrückt oder gehalten
+                        pressed_keys.add(key_name)
 
-        if not devices:
-            print("Keine RLink Geräte gefunden. Beende.")
-            return
+                        # Aktionen, die nur bei erstem Drücken ausgelöst werden sollen
+                        if key_state == key_event.key_down:
+                            if key_name == 'h':
+                                with outgoing_data_ref.lock:
+                                    outgoing_data_ref.horn = not outgoing_data_ref.horn
+                                print(f"Hupe {'AN' if outgoing_data_ref.horn else 'AUS'}")
+                            elif key_name == 'l':
+                                 with outgoing_data_ref.lock:
+                                     # Beispiel: Abblendlicht schalten
+                                     light_index = RLinkLight.DIP.value
+                                     outgoing_data_ref.lights[light_index] = not outgoing_data_ref.lights[light_index]
+                                 print(f"Licht (DIP) {'AN' if outgoing_data_ref.lights[light_index] else 'AUS'}")
+                            elif key_name == 'q' or key_name == 'esc':
+                                 print(f"Beenden durch '{key_name}' erkannt.")
+                                 quit_event.set()
+                                 break # Schleife verlassen
 
-        print(f"{len(devices)} Gerät(e) gefunden:")
-        for i, dev in enumerate(devices):
-            print(f"  [{i}] {dev}")
+                    elif key_state == key_event.key_up:
+                        # Taste losgelassen
+                        if key_name in pressed_keys:
+                            pressed_keys.remove(key_name)
 
-        # Wähle das erste Gerät automatisch aus
-        # TODO: Optional den Benutzer auswählen lassen, wenn mehrere Geräte vorhanden sind
-        selected_device_info = devices[0]._dev_info_ptr
-        print(f"\nVerbinde mit Gerät 0 (SN: {devices[0].serial})...")
-
-        # Verwende den Context Manager des Wrappers für sicheres Öffnen/Schließen
-        with MspRlink(selected_device_info) as rlink:
-            print("Verbindung erfolgreich hergestellt.")
-            print("\nSteuerung aktiv:")
-            print(" - WASD: Bewegung")
-            print(" - H:    Hupe an/aus")
-            print(" - L:    Licht an/aus (Abblendlicht)")
-            print(" - ESC/Q: Beenden")
-
-            # Initialisiere Horn und Licht auf AUS beim Start
-            try:
-                rlink.set_horn(False)
-                rlink.set_light(RLinkLight.DIP, False) # Annahme: DIP ist das Hauptlicht
-                horn_on = False
-                lights_on = False
-            except RLinkError as e:
-                 print(f"Warnung: Fehler beim Initialisieren von Horn/Licht: {e}")
-
-
-            # Starte den Keyboard Listener in einem separaten Thread
-            listener = keyboard.Listener(on_press=on_press, on_release=on_release)
-            listener.start()
-
-            last_heartbeat_time = time.time()
-            last_horn_state = horn_on
-            last_lights_state = lights_on
-
-            while running:
-                current_time = time.time()
-
-                # 1. Berechne Bewegungsvektor basierend auf gedrückten Tasten
-                target_x = 0
-                target_y = 0
-
-                if 'w' in keys_pressed:
-                    target_y += MOVEMENT_SPEED
-                if 's' in keys_pressed:
-                    target_y -= MOVEMENT_SPEED
-                if 'a' in keys_pressed:
-                    target_x -= MOVEMENT_SPEED
-                if 'd' in keys_pressed:
-                    target_x += MOVEMENT_SPEED
-
-                # Werte auf den gültigen Bereich (-127 bis 127) begrenzen
-                target_x = max(-127, min(127, target_x))
-                target_y = max(-127, min(127, target_y))
-
-                # 2. Sende Bewegungskommandos
-                try:
-                    rlink.set_xy(target_x, target_y)
-                except RLinkError as e:
-                    print(f"\nFehler beim Senden von set_xy: {e}")
-                    running = False # Bei Fehler beenden
-                    continue # Schleife abbrechen
-
-                # 3. Sende Horn/Licht-Kommandos (nur wenn sich der Zustand geändert hat)
-                try:
-                    if horn_on != last_horn_state:
-                        rlink.set_horn(horn_on)
-                        last_horn_state = horn_on
-
-                    if lights_on != last_lights_state:
-                        # Hier RLinkLight.DIP als Beispiel verwenden
-                        rlink.set_light(RLinkLight.DIP, lights_on)
-                        last_lights_state = lights_on
-                except RLinkError as e:
-                    print(f"\nFehler beim Senden von Horn/Licht: {e}")
-                    # Fehler hier muss nicht unbedingt zum Abbruch führen
-                    # Setze den last_state zurück, um erneuten Versuch zu ermöglichen
-                    if horn_on != last_horn_state: last_horn_state = not horn_on
-                    if lights_on != last_lights_state: last_lights_state = not lights_on
-
-
-                # 4. Sende Heartbeat regelmäßig
-                if current_time - last_heartbeat_time >= HEARTBEAT_INTERVAL:
-                    try:
-                        rlink.heartbeat()
-                        last_heartbeat_time = current_time
-                    except RLinkError as e:
-                        print(f"\nFehler beim Senden des Heartbeats: {e}")
-                        running = False # Bei Fehler beenden
-                        continue
-
-                # 5. Kurze Pause einlegen
-                time.sleep(LOOP_SLEEP_TIME)
-
-            print("Hauptschleife beendet.")
-
-    except RLinkError as e:
-        print(f"\nEin RLink-Fehler ist aufgetreten: {e}", file=sys.stderr)
-    except FileNotFoundError as e: # Fängt Fehler vom Wrapper ab, falls Lib nicht gefunden
-         print(f"\nFehler: {e}", file=sys.stderr)
-    except ImportError as e: # Fängt pynput/wrapper Import Fehler ab
-         print(f"\nImport Fehler: {e}", file=sys.stderr)
+    except IOError as e:
+         print(f"Fehler beim Lesen vom Keyboard-Device: {e}", file=sys.stderr)
+         quit_event.set()
     except Exception as e:
-        print(f"\nEin unerwarteter Fehler ist aufgetreten: {e}", file=sys.stderr)
-        import traceback
-        traceback.print_exc()
+        print(f"Unerwarteter Fehler im Keyboard-Thread: {e}", file=sys.stderr)
+        quit_event.set()
     finally:
-        print("Räume auf...")
-        # Stoppe den Keyboard Listener, falls er läuft
-        if listener and listener.is_alive():
-            listener.stop()
-            listener.join() # Warte auf Beendigung des Listener-Threads
-            print("Keyboard Listener gestoppt.")
+        try:
+            device.ungrab() # Wichtig: Exklusiven Zugriff freigeben
+            print("Tastatur freigegeben (ungrabbed).")
+            device.close()
+        except Exception as e:
+            print(f"Fehler beim Freigeben/Schließen des Geräts: {e}", file=sys.stderr)
 
-        # Die RLink-Verbindung wird automatisch durch den 'with'-Block geschlossen
-        # (rlink.__exit__ ruft rlink.close() auf)
-        # Falls kein 'with' verwendet würde, bräuchte man hier:
-        # if rlink and rlink._opened:
-        #     try:
-        #         rlink.close()
-        #     except RLinkError as e:
-        #         print(f"Fehler beim Schließen der RLink Verbindung: {e}", file=sys.stderr)
+    print("Keyboard thread finished.")
 
-        print("Aufgeräumt. Programm beendet.")
 
-# --- Skriptstart ---
+def thread_wheelchair_logic(rlink: MspRlink, outgoing_data_ref: OutgoingData):
+    """Sendet Kommandos an RLink basierend auf pressed_keys und outgoing_data."""
+    global pressed_keys # Zugriff auf globale Variable
+    print("Wheelchair thread started.")
+    heartbeat_enabled = True # Heartbeat standardmäßig an
+    last_heartbeat_time = time.time()
+
+    previous_outgoing = OutgoingData()
+    previous_outgoing.x = -999 # Sicherstellen, dass beim ersten Mal gesendet wird
+
+    while not quit_event.is_set():
+        current_time = time.time()
+
+        # Heartbeat senden
+        if heartbeat_enabled and current_time - last_heartbeat_time >= HEARTBEAT_INTERVAL:
+            try:
+                rlink.heartbeat()
+                last_heartbeat_time = current_time
+            except RLinkError as e:
+                print(f"\nWheelchair Thread: Error sending heartbeat: {e}", file=sys.stderr)
+                quit_event.set(); break
+
+        # --- Bewegung basierend auf pressed_keys berechnen ---
+        target_x = 0
+        target_y = 0
+        # Kopiere Set für sicheren Zugriff, obwohl GIL helfen sollte
+        current_pressed = set(pressed_keys)
+        if 'w' in current_pressed: target_y += MOVEMENT_SPEED
+        if 's' in current_pressed: target_y -= MOVEMENT_SPEED
+        if 'a' in current_pressed: target_x -= MOVEMENT_SPEED
+        if 'd' in current_pressed: target_x += MOVEMENT_SPEED
+
+        target_x = max(-127, min(127, target_x))
+        target_y = max(-127, min(127, target_y))
+
+        # --- Aktuellen Soll-Zustand aus outgoing_data holen (für Toggles) ---
+        current_outgoing = OutgoingData() # Temporäres Objekt
+        with outgoing_data_ref.lock:
+            # Setze berechnete Bewegung
+            current_outgoing.x = target_x
+            current_outgoing.y = target_y
+            # Übernehme Toggle-Zustände
+            current_outgoing.btn = outgoing_data_ref.btn # Falls Button verwendet wird
+            current_outgoing.horn = outgoing_data_ref.horn
+            current_outgoing.axis0 = outgoing_data_ref.axis0 # Falls Axis verwendet wird
+            current_outgoing.error = outgoing_data_ref.error # Falls Error verwendet wird
+            current_outgoing.lights = list(outgoing_data_ref.lights) # Kopie
+
+        # --- Vergleiche mit vorherigem Zustand und sende bei Bedarf ---
+        try:
+            # Bewegung
+            if previous_outgoing.x != current_outgoing.x or previous_outgoing.y != current_outgoing.y:
+                rlink.set_xy(current_outgoing.x, current_outgoing.y)
+
+            # Hupe
+            if previous_outgoing.horn != current_outgoing.horn:
+                rlink.set_horn(current_outgoing.horn)
+
+            # Lichter
+            for i in range(MSP_RLINK_LIGHT_NOF):
+                 if previous_outgoing.lights[i] != current_outgoing.lights[i]:
+                     rlink.set_light(RLinkLight(i), current_outgoing.lights[i])
+
+            # Fehler (nur senden wenn != 0, dann im Original zurücksetzen)
+            if current_outgoing.error != 0 and previous_outgoing.error != current_outgoing.error:
+                 rlink.set_error(current_outgoing.error)
+                 with outgoing_data_ref.lock: # Fehler zurücksetzen im Original
+                     outgoing_data_ref.error = 0
+                 current_outgoing.error = 0 # Auch im temporären Objekt für nächsten Vergleich
+
+            # Weitere (Button, Axis...) hier hinzufügen, falls benötigt
+
+            # Update previous state
+            previous_outgoing = current_outgoing
+
+        except RLinkError as e:
+             print(f"\nWheelchair Thread: Error sending command: {e}", file=sys.stderr)
+             quit_event.set(); break
+        except Exception as e:
+            print(f"\nWheelchair Thread: Unexpected error: {e}", file=sys.stderr)
+            quit_event.set(); break
+
+        time.sleep(LOOP_WHEELCHAIR_SLEEP)
+
+    print("Wheelchair thread finished.")
+
+
+def thread_main_polling_logic(rlink: MspRlink, incoming_data: IncomingData):
+    """Pollt RLink auf Statusänderungen und Daten (unverändert)."""
+    # ... (Code aus der Konsolen-Version kann hierhin kopiert werden) ...
+    print("Main polling thread started.")
+    while not quit_event.is_set():
+        try:
+            flags = rlink.get_status_flags()
+            if flags & MSP_RLINK_EV_ERROR:
+                print("\nMain Thread: RLink error flag detected!", file=sys.stderr)
+                latest_err = rlink.get_latest_error(); print(f" -> Latest RLink Error: {latest_err.name}", file=sys.stderr)
+                quit_event.set(); break
+            if flags & MSP_RLINK_EV_DISCONNECTED:
+                print("\nMain Thread: RLink disconnected flag detected!", file=sys.stderr)
+                quit_event.set(); break
+            if flags & MSP_RLINK_EV_DATA_READY:
+                with incoming_data.lock:
+                    try:
+                        (incoming_data.oon, incoming_data.status, incoming_data.warning) = rlink.get_device_status()
+                        incoming_data.mode = rlink.get_mode(); incoming_data.profile = rlink.get_profile()
+                        (incoming_data.inputProcess, ..., incoming_data.selOutput) = rlink.get_hms() # Gekürzt
+                        incoming_data.horn = rlink.get_horn()
+                        (incoming_data.batt_low, ...) = rlink.get_battery_info() # Gekürzt
+                        (incoming_data.m1Vel, ...) = rlink.get_velocity() # Gekürzt
+                        (incoming_data.speed, ...) = rlink.get_speed() # Gekürzt
+                        for i in range(MSP_RLINK_LIGHT_NOF):
+                            active, lit = rlink.get_light(RLinkLight(i))
+                            incoming_data.lights[i]['active'] = active; incoming_data.lights[i]['lit'] = lit
+                    except RLinkError as e: print(f"\nMain Thread: Error retrieving data: {e}", file=sys.stderr); quit_event.set(); break
+        except RLinkError as e: print(f"\nMain Thread: Error checking status: {e}", file=sys.stderr); quit_event.set(); break
+        except Exception as e: print(f"\nMain Thread: Unexpected error: {e}", file=sys.stderr); quit_event.set(); break
+        time.sleep(LOOP_MAIN_POLL_SLEEP)
+    print("Main polling thread finished.")
+
+
+# --- Hauptprogrammablauf ---
+def run_application():
+    global outgoing_data # Referenz auf globale Variable setzen
+
+    rlink = None
+    threads = []
+
+    try:
+        print("Searching for RLink devices...")
+        devices = MspRlink.enumerate_devices()
+        if not devices: print("No RLink devices found. Exiting."); return
+
+        print(f"{len(devices)} device(s) found:")
+        device_options = [f"{dev.serial}: {dev.description}" for i, dev in enumerate(devices)]
+        for i, desc in enumerate(device_options): print(f"  [{i}] {desc}")
+
+        selected_index = -1
+        while selected_index < 0 or selected_index >= len(devices):
+            try:
+                choice = input(f"Select device index [0-{len(devices)-1}] or 'quit': ")
+                if choice.lower() == 'quit': print("Exiting."); return
+                selected_index = int(choice)
+                if selected_index < 0 or selected_index >= len(devices): print("Invalid index.")
+            except ValueError: print("Invalid input, please enter a number.")
+
+        selected_device_info = devices[selected_index]._dev_info_ptr
+        print(f"\nConnecting to device {selected_index} ({device_options[selected_index]})...")
+
+        rlink = MspRlink(selected_device_info)
+
+        log_filename = "rlink_evdev_py.log"
+        if rlink.set_log_file(log_filename):
+            rlink.set_logging(True); print(f"Logging enabled to '{log_filename}'")
+        else: print(f"Warning: Failed to set log file '{log_filename}'")
+
+        rlink.open()
+        print("Device opened successfully.")
+        print("\nStarting direct keyboard control (using evdev)...")
+        print(" - WASD: Bewegung")
+        print(" - H:    Hupe an/aus")
+        print(" - L:    Licht an/aus (Abblendlicht)")
+        print(" - ESC/Q: Beenden")
+        print("\nWaiting for keyboard input...")
+
+        # Geteilte Datenobjekte erstellen
+        incoming = IncomingData()
+        outgoing_data = OutgoingData() # Globale Variable initialisieren
+
+        # Threads erstellen
+        main_thread = threading.Thread(target=thread_main_polling_logic, args=(rlink, incoming), daemon=True)
+        wheelchair_thread = threading.Thread(target=thread_wheelchair_logic, args=(rlink, outgoing_data), daemon=True)
+        # Keyboard thread NICHT als daemon, damit er sauber beenden kann
+        keyboard_thread = threading.Thread(target=thread_keyboard_logic, args=(outgoing_data,))
+
+        threads = [main_thread, wheelchair_thread, keyboard_thread]
+
+        print("Starting threads...")
+        for t in threads: t.start()
+
+        # Auf Beendigung des Keyboard-Threads warten (oder bis quit_event gesetzt wird)
+        while keyboard_thread.is_alive():
+            if quit_event.wait(timeout=0.5):
+                 print("Quit event detected by main.")
+                 break
+
+        print("Waiting for threads to finish...")
+        quit_event.set()
+        main_thread.join(timeout=2.0)
+        wheelchair_thread.join(timeout=2.0)
+        keyboard_thread.join(timeout=2.0) # Warte auch auf den Keyboard-Thread
+
+        print("All threads finished.")
+
+    # ... (Restliches Exception Handling und Cleanup wie in der Konsolen-Version) ...
+    except RLinkError as e: print(f"\nAn RLink error occurred: {e}", file=sys.stderr)
+    except FileNotFoundError as e: print(f"\nError: {e}", file=sys.stderr)
+    except ImportError as e: print(f"\nImport Error: {e}", file=sys.stderr)
+    except KeyboardInterrupt: print("\nCtrl+C detected, shutting down.", file=sys.stderr); quit_event.set()
+    except Exception as e:
+        print(f"\nAn unexpected error occurred in main: {e}", file=sys.stderr)
+        import traceback; traceback.print_exc(); quit_event.set()
+    finally:
+        print("Cleaning up...")
+        # quit_event sicherheitshalber nochmal setzen
+        quit_event.set()
+        for t in threads:
+             if t.is_alive(): print(f"Warning: Thread {t.name} still alive.", file=sys.stderr); t.join(0.5)
+        if rlink:
+            try: print("Closing RLink connection..."); rlink.close(); print("RLink connection closed.")
+            except Exception as e: print(f"Error closing RLink connection: {e}", file=sys.stderr)
+        print("Cleanup finished. Exiting.")
+
 if __name__ == "__main__":
-    main()
+    run_application()
