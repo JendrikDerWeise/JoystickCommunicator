@@ -16,14 +16,26 @@ def check_for_captive_portal():
     expected_host = "192.168.4.1"
     # Erlaube auch den Zugriff über localhost oder den Standard-Flask-Hostnamen für lokale Tests
     allowed_hosts = [expected_host, "localhost", "127.0.0.1"]
-    print(f"Request received for host: {request.host}")  # <-- WICHTIGES LOGGING
 
-    # request.host enthält den Hostnamen *ohne* Port
-    if request.host.split(':')[0] not in allowed_hosts:
-        # Wenn der angefragte Host nicht der erwartete ist,
-        # leite auf die Startseite unter der korrekten IP um.
-        print(f"Captive portal redirect triggered for host: {request.host}") #Debug-Ausgabe
-        return redirect(url_for('index', _external=True, _scheme='http', _host=expected_host))
+    # --- Verbessertes Logging ---
+    host_received = request.host.split(':')[0]
+    app.logger.info(f"Request received for host: {request.host} -> Parsed host: {host_received}")
+    # --- Ende Verbessertes Logging ---
+
+    # --- Versuch einer robusteren Bedingung ---
+    # Prüfe, ob die Anfrage-URL NICHT mit der erwarteten Basis-URL beginnt
+    expected_url_root = f'http://{expected_host}/'
+    if not request.url.startswith(expected_url_root) and host_received not in allowed_hosts :
+    #--- Ende Versuch ---
+
+    # Alte Bedingung (nur zum Vergleich):
+    # if host_received not in allowed_hosts:
+
+        app.logger.warning(f"--> Captive portal redirect triggered for host: {request.host}")
+        # --- Verwende testweise eine harte URL, um url_for auszuschließen ---
+        return redirect(f'http://{expected_host}/')
+        # --- Ende harte URL ---
+        # return redirect(url_for('index', _external=True, _scheme='http', _host=expected_host))
 # --- Ende NEU ---
 
 @app.route("/")
