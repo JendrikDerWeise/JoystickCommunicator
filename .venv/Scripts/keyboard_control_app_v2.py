@@ -9,7 +9,7 @@ import os
 # Importiere den NEUEN minimalen Wrapper und die Enums
 try:
     from full_rlink_wrapper import (
-        Rlink, RLinkError, RLinkLight,
+        RLink, RLinkError, RLinkLight,
         RLinkAxisId, RLinkAxisDir # Benötigte Enums
     )
 except ImportError as e:
