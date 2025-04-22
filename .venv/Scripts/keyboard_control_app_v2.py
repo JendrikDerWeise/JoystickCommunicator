@@ -6,14 +6,15 @@ import threading
 import sys
 import os
 
-# Importiere den NEUEN minimalen Wrapper und die Enums
+# Importiere den VOLLSTÄNDIGEN Wrapper und die benötigten Enums/Klassen
 try:
     from full_rlink_wrapper import (
-        RLink, RLinkError, RLinkLight,
-        RLinkAxisId, RLinkAxisDir # Benötigte Enums
+        RLink, RLinkDeviceInfo, RLinkError, # Hauptklasse und Info-Objekt
+        RLinkLight, RLinkAxisId, RLinkAxisDir # Benötigte Enums
     )
 except ImportError as e:
     print(f"Fehler: Konnte 'full_rlink_wrapper.py' nicht finden: {e}", file=sys.stderr)
+    print("Stelle sicher, dass die Datei im selben Verzeichnis liegt oder im PYTHONPATH.", file=sys.stderr)
     sys.exit(1)
 
 # Versuche, evdev zu importieren
@@ -27,7 +28,7 @@ except ImportError:
 
 # --- Konfiguration ---
 LOOP_CONTROL_SLEEP = 0.04 # Sekunden Pause in der Haupt-Steuerschleife (ca. 25 Hz)
-HEARTBEAT_INTERVAL = 0.5 # Sekunden zwischen Heartbeats (wird jetzt ignoriert)
+# HEARTBEAT_INTERVAL = 0.5 # Wird nicht mehr für if benötigt, da Heartbeat immer gesendet wird
 MOVEMENT_SPEED = 100    # Max. Wert für X/Y Achse (Bereich -127 bis 127)
 
 # !!! WICHTIG: PASSE DIESE ID AN DEINE SITZKANTELUNG AN !!!
@@ -49,8 +50,10 @@ KEY_MAP = {
 }
 
 # --- Tastatur-Controller Klasse (mit Lock und korrigierter Logik) ---
+# Diese Klasse bleibt im Wesentlichen unverändert gegenüber der Version aus
+# Antwort #27, da sie das RLink-Objekt nur über die definierten Methoden nutzt.
 class KeyboardController:
-    def __init__(self, rlink_instance: RLink):
+    def __init__(self, rlink_instance: RLink): # Typ-Hinweis auf RLink geändert
         """Initialisiert den Controller."""
         self.rlink = rlink_instance
         self.pressed_keys = set()
@@ -60,7 +63,7 @@ class KeyboardController:
         self.quit_event = threading.Event()
         self.keyboard_device = None
         self.keyboard_thread = None
-        # Initialisiere last_sent Werte, um unnötiges Senden beim Start zu vermeiden
+        # Initialisiere last_sent Werte
         self._last_sent_x = 0
         self._last_sent_y = 0
         self._last_sent_horn = self.horn_on
@@ -118,18 +121,18 @@ class KeyboardController:
                         if key_state == key_event.key_down: # Nur bei erstem Drücken
                             if key_name == 'h':
                                 self.horn_on = not self.horn_on
-                                print(f"Hupe {'AN' if self.horn_on else 'AUS'}")
+                                print(f"\nHupe {'AN' if self.horn_on else 'AUS'}") # Newline für bessere Lesbarkeit
                             elif key_name == 'l':
                                 self.lights_on = not self.lights_on
-                                print(f"Licht (DIP) {'AN' if self.lights_on else 'AUS'}")
+                                print(f"\nLicht (DIP) {'AN' if self.lights_on else 'AUS'}") # Newline
                             elif key_name == 'q' or key_name == 'esc':
-                                print(f"Beenden durch '{key_name}' erkannt.")
+                                print(f"\nBeenden durch '{key_name}' erkannt.") # Newline
                                 self.quit_event.set(); break
         except IOError as e:
-             print(f"Fehler beim Lesen vom Keyboard-Device (getrennt?): {e}", file=sys.stderr)
+             print(f"\nFehler beim Lesen vom Keyboard-Device (getrennt?): {e}", file=sys.stderr)
              self.quit_event.set()
         except Exception as e:
-            print(f"Unerwarteter Fehler im Keyboard-Thread: {e}", file=sys.stderr)
+            print(f"\nUnerwarteter Fehler im Keyboard-Thread: {e}", file=sys.stderr)
             self.quit_event.set()
         finally:
             if self.keyboard_device:
@@ -147,7 +150,7 @@ class KeyboardController:
         self.quit_event.clear()
         self.keyboard_thread = threading.Thread(target=self._keyboard_thread_func, daemon=True)
         self.keyboard_thread.start()
-        time.sleep(0.5) # Kurz warten, bis Thread läuft/Gerät gefunden hat
+        time.sleep(0.5) # Kurz warten
         if not self.keyboard_thread.is_alive() or self.quit_event.is_set():
              print("Fehler: Keyboard Thread konnte nicht korrekt gestartet werden.", file=sys.stderr)
              return False
@@ -180,14 +183,14 @@ class KeyboardController:
         print(" - H:     Hupe AN/AUS")
         print(" - L:     Licht (DIP) AN/AUS")
         print(" - ESC/Q: Beenden")
-        print(f"--- ACHTUNG: Sitzkantelung ist auf AXIS ID {SEAT_TILT_AXIS_ID.value} gemappt ---")
+        print(f"--- ACHTUNG: Sitzkantelung ist auf AXIS ID {SEAT_TILT_AXIS_ID.value} gemappt (ggf. ändern!) ---")
         print("\nWarte auf Eingaben...")
 
         speed_info_str = "Speed: --- km/h (Set:---, Lim:---)" # Platzhalter
 
         try:
             while not self.quit_event.is_set():
-                # 1. Heartbeat IMMER senden (Deine funktionierende Lösung)
+                # 1. Heartbeat IMMER senden
                 self.rlink.heartbeat()
 
                 # Kopiere gedrückte Tasten für diesen Durchlauf (mit Lock)
@@ -231,12 +234,11 @@ class KeyboardController:
                     speed_info_str = f"Speed: {true_speed_kmh:4.1f} km/h (Set:{speed_setting}, Lim:{limit_flag})"
                 except RLinkError as e:
                     speed_info_str = f"Speed: Error ({e.status_code if hasattr(e, 'status_code') else '?'})"
-                except Exception: # Catch potential other errors during speed fetch
+                except Exception:
                     speed_info_str = "Speed: Error (Unknown)"
 
-
                 # 7. Debug/Status-Ausgabe
-                status_line = f"\rKeys: [{','.join(sorted(list(current_pressed))):<10s}] | Target: ({target_x:+4d},{target_y:+4d}) | Tilt: {target_axis_dir.name if target_axis_dir != RLinkAxisDir.NONE else ' ': <4s} | {speed_info_str}      "
+                status_line = f"\rKeys: [{','.join(sorted(list(current_pressed))):<10s}] | Target: ({target_x:+4d},{target_y:+4d}) | Tilt: {target_axis_dir.name if target_axis_dir != RLinkAxisDir.NONE else 'NONE': <4s} | {speed_info_str}      "
                 print(status_line, end="", flush=True)
 
                 # 8. Schlafen
@@ -254,7 +256,7 @@ class KeyboardController:
 # --- Ende Klasse KeyboardController ---
 
 
-# --- Hauptprogrammablauf ---
+# --- Hauptprogrammablauf (Korrigiert für neuen RLink Wrapper) ---
 if __name__ == "__main__":
     print("WARNUNG: Dieses Skript basiert auf dem funktionierenden Minimal-Wrapper.")
     print("         Es wird erwartet, dass die *originale* (fehlerhafte) udev-Regel aktiv ist,")
@@ -270,11 +272,43 @@ if __name__ == "__main__":
     print(f"--- ACHTUNG: Sitzkantelung ist auf AXIS ID {SEAT_TILT_AXIS_ID.value} gemappt (ggf. ändern!) ---")
     print("-" * 60)
 
-    rlink_connection = None
-    controller = None
+    rlink_connection = None # Die RLink Instanz
+    controller = None     # Die KeyboardController Instanz
+
     try:
-        # Initialisiere RLink Verbindung zum ersten gefundenen Gerät
-        rlink_connection = RLink(device_index=0)
+        # --- Enumeration und Geräteauswahl ---
+        all_devices: list[RLinkDeviceInfo] = RLink.enumerate_devices() # Nutze die statische Methode
+        if not all_devices:
+            print("Keine RLink Geräte gefunden. Beende.")
+            sys.exit(1)
+
+        print(f"{len(all_devices)} Gerät(e) zur Auswahl:")
+        for i, dev in enumerate(all_devices):
+            print(f"  [{i}] {dev.serial}: {dev.description}")
+
+        selected_index = -1
+        # Benutzerauswahl
+        while selected_index < 0 or selected_index >= len(all_devices):
+            try:
+                choice = input(f"Wähle Geräteindex [0-{len(all_devices)-1}] oder 'quit': ")
+                if choice.lower() == 'quit':
+                    print("Beende.")
+                    sys.exit(0)
+                selected_index = int(choice)
+                if selected_index < 0 or selected_index >= len(all_devices):
+                    print("Ungültiger Index.")
+            except ValueError:
+                print("Ungültige Eingabe, bitte eine Zahl eingeben.")
+
+        # Hole das ausgewählte RLinkDeviceInfo Objekt
+        selected_device_info = all_devices[selected_index]
+        print(f"\nVerbinde mit Gerät {selected_index} ({selected_device_info.serial})...")
+        # --- Ende Enumeration und Auswahl ---
+
+        # Initialisiere RLink Verbindung mit dem ausgewählten Geräte-Info-Objekt
+        # Verwende den Context Manager für automatisches Schließen/Zerstören (optional)
+        # with RLink(selected_device_info) as rlink_connection: # Alternative
+        rlink_connection = RLink(selected_device_info) # Erstelle Instanz
         rlink_connection.open() # Öffne die Verbindung
 
         # Initialisiere Lichter/Hupe/Achse auf definierten Zustand
@@ -295,17 +329,21 @@ if __name__ == "__main__":
          print(f"\nFehler beim Laden der Bibliothek: {e}", file=sys.stderr)
     except ImportError as e: # Falls evdev oder Wrapper fehlt
          print(f"\nImport Fehler: {e}", file=sys.stderr)
+    except KeyboardInterrupt:
+        print("\nCtrl+C erkannt, räume auf...", file=sys.stderr)
+        if controller: controller.quit_event.set() # Signalisiere Threads
     except Exception as e:
         print(f"\nEin unerwarteter Fehler ist aufgetreten: {e}", file=sys.stderr)
         import traceback
         traceback.print_exc()
+        if controller: controller.quit_event.set() # Signalisiere Threads
     finally:
         # Aufräumen
         print("\nRäume auf...")
         if controller:
             controller.stop() # Stoppt Keyboard Thread
         if rlink_connection:
-            # Schließe Verbindung und zerstöre RLink Handle explizit
+            # Schließe Verbindung und zerstöre RLink Handle explizit mit Methode
             rlink_connection.destruct()
 
         print("Aufgeräumt. Programm beendet.")
