@@ -151,14 +151,24 @@ class MiniRlink:
             if device_index >= nofDevices.value:
                  raise RLinkError(f"Geräteindex {device_index} ungültig (nur {nofDevices.value} Geräte gefunden).")
 
-            # devinfo ist ein Pointer auf einen Pointer (void**), daher POINTER(c_void_p)
-            devinfo_ptr_ptr = ctypes.POINTER(c_void_p)()
-            status = self._lib.msp_rlink_GetDevice(devices_handle, device_index, ctypes.byref(devinfo_ptr_ptr))
-            if status != MSP_OK or not devinfo_ptr_ptr or not devinfo_ptr_ptr.contents:
-                 raise RLinkError(f"msp_rlink_GetDevice für Index {device_index} fehlgeschlagen, Status: {status}")
+                 # Erstelle eine Variable, die den Output-Pointer (msp_rlink_devinfo_t* / void*) aufnehmen kann
+                 devinfo_holder = c_void_p()
 
-            # Speichere den Pointer-Wert
-            self.devinfo = devinfo_ptr_ptr.contents
+                 # Übergebe die Adresse dieser Variable an die C-Funktion.
+                 # byref(devinfo_holder) hat den korrekten Typ POINTER(c_void_p)
+                 status = self._lib.msp_rlink_GetDevice(devices_handle, device_index, ctypes.byref(devinfo_holder))
+
+                 # Prüfe Status und ob der zurückgegebene Pointer gültig ist (nicht NULL)
+                 if status != MSP_OK or not devinfo_holder.value:  # .value prüft auf non-NULL
+                     # Den Pointer-Wert ausgeben, falls vorhanden, auch bei Fehlerstatus
+                     returned_ptr_value = devinfo_holder.value if devinfo_holder else 'None'
+                     raise RLinkError(
+                         f"msp_rlink_GetDevice für Index {device_index} fehlgeschlagen. Status: {status}, Erhaltener Pointer-Wert: {returned_ptr_value}")
+
+                 # Speichere den Pointer-Wert, den die C-Funktion in devinfo_holder geschrieben hat
+                 self.devinfo = devinfo_holder.value  # .value gibt den eigentlichen Pointer-Wert zurück
+                 # Optional: Behalte das ctypes-Objekt, falls du es brauchst
+                 # self._devinfo_c_void_p = devinfo_holder
             print(f"Geräteinformation für Index {device_index} erhalten.")
 
             # Destruct der Device-Liste wird hier nicht gemacht, da devinfo noch gebraucht wird
