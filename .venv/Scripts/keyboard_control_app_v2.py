@@ -202,6 +202,7 @@ class KeyboardController:
 
         try:
             while not self.quit_event.is_set():
+                self.rlink.heartbeat()
                 current_time = time.time()
 
                 # 1. Bewegung berechnen
@@ -241,7 +242,7 @@ class KeyboardController:
 
                 # 4. Heartbeat
                 #if current_time - last_heartbeat_time >= HEARTBEAT_INTERVAL:
-                self.rlink.heartbeat()
+
                     #last_heartbeat_time = current_time
 
                 # 5. Schlafen (WICHTIG und AKTIV!)
