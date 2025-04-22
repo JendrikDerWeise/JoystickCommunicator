@@ -172,10 +172,10 @@ class KeyboardController:
                 target_y = max(-127, min(127, target_y))
 
                 # 2. Befehle nur senden, wenn nötig
-                if target_x != self._last_sent_x or target_y != self._last_sent_y:
-                    self.rlink.set_xy(target_x, target_y)
-                    self._last_sent_x = target_x
-                    self._last_sent_y = target_y
+                #if target_x != self._last_sent_x or target_y != self._last_sent_y:
+                self.rlink.set_xy(target_x, target_y)
+                    #self._last_sent_x = target_x
+                    #self._last_sent_y = target_y
 
                 if self.horn_on != self._last_sent_horn:
                     self.rlink.set_horn(self.horn_on)
@@ -192,7 +192,7 @@ class KeyboardController:
                     last_heartbeat_time = current_time
 
                 # 4. Schlafen
-                #time.sleep(LOOP_CONTROL_SLEEP)
+                time.sleep(LOOP_CONTROL_SLEEP)
 
         except KeyboardInterrupt:
             print("\nCtrl+C erkannt, beende Steuerschleife.", flush=True)
