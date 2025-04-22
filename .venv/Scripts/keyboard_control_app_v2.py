@@ -192,7 +192,7 @@ class KeyboardController:
                     last_heartbeat_time = current_time
 
                 # 4. Schlafen
-                time.sleep(LOOP_CONTROL_SLEEP)
+                #time.sleep(LOOP_CONTROL_SLEEP)
 
         except KeyboardInterrupt:
             print("\nCtrl+C erkannt, beende Steuerschleife.", flush=True)
