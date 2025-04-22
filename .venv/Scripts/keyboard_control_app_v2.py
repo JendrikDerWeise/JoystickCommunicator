@@ -20,7 +20,7 @@ except ImportError:
     print("Bitte installiere sie mit: pip3 install evdev", file=sys.stderr)
     sys.exit(1)
 
-LOOP_CONTROL_SLEEP = 0.02
+LOOP_CONTROL_SLEEP = 0.1
 HEARTBEAT_INTERVAL = 0.5
 MOVEMENT_SPEED = 100
 
@@ -217,8 +217,8 @@ class KeyboardController:
                 if 's' in current_pressed: target_y -= MOVEMENT_SPEED
                 if 'a' in current_pressed: target_x -= MOVEMENT_SPEED
                 if 'd' in current_pressed: target_x += MOVEMENT_SPEED
-                target_x = max(-127, min(127, target_x))
-                target_y = max(-127, min(127, target_y))
+                #target_x = max(-127, min(127, target_x))
+                #target_y = max(-127, min(127, target_y))
                 with self.keys_lock:  # Lock auch hier, falls Zugriff auf self.pressed_keys
                     current_pressed_str = ",".join(sorted(list(self.pressed_keys)))
                 print(f"\rKeys: [{current_pressed_str:<10s}] | Target: ({target_x:+4d},{target_y:+4d})", end="",
