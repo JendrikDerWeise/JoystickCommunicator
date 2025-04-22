@@ -8,7 +8,7 @@ import os
 
 # Importiere den NEUEN minimalen Wrapper und die Enums
 try:
-    from mini_rlink_wrapper_v2 import (
+    from full_rlink_wrapper import (
         MiniRlink, RLinkError, RLinkLight,
         RLinkAxisId, RLinkAxisDir # Benötigte Enums
     )
