@@ -240,9 +240,9 @@ class KeyboardController:
                     self._last_sent_light = self.lights_on
 
                 # 4. Heartbeat
-                if current_time - last_heartbeat_time >= HEARTBEAT_INTERVAL:
-                    self.rlink.heartbeat()
-                    last_heartbeat_time = current_time
+                #if current_time - last_heartbeat_time >= HEARTBEAT_INTERVAL:
+                self.rlink.heartbeat()
+                    #last_heartbeat_time = current_time
 
                 # 5. Schlafen (WICHTIG und AKTIV!)
                 time.sleep(LOOP_CONTROL_SLEEP)
