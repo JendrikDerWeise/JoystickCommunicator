@@ -8,8 +8,9 @@ import os
 
 # Importiere den VOLLSTÄNDIGEN Wrapper und die benötigten Enums/Klassen
 try:
+    # Stelle sicher, dass du RLink aus der korrigierten full_rlink_wrapper.py importierst
     from full_rlink_wrapper import (
-        RLink, RLinkDeviceInfo, RLinkError, # Hauptklasse und Info-Objekt
+        RLink, RLinkError, # Hauptklasse importieren
         RLinkLight, RLinkAxisId, RLinkAxisDir # Benötigte Enums
     )
 except ImportError as e:
@@ -28,7 +29,7 @@ except ImportError:
 
 # --- Konfiguration ---
 LOOP_CONTROL_SLEEP = 0.04 # Sekunden Pause in der Haupt-Steuerschleife (ca. 25 Hz)
-# HEARTBEAT_INTERVAL = 0.5 # Wird nicht mehr für if benötigt, da Heartbeat immer gesendet wird
+# HEARTBEAT_INTERVAL = 0.5 # Wird nicht mehr für if benötigt
 MOVEMENT_SPEED = 100    # Max. Wert für X/Y Achse (Bereich -127 bis 127)
 
 # !!! WICHTIG: PASSE DIESE ID AN DEINE SITZKANTELUNG AN !!!
@@ -50,10 +51,8 @@ KEY_MAP = {
 }
 
 # --- Tastatur-Controller Klasse (mit Lock und korrigierter Logik) ---
-# Diese Klasse bleibt im Wesentlichen unverändert gegenüber der Version aus
-# Antwort #27, da sie das RLink-Objekt nur über die definierten Methoden nutzt.
 class KeyboardController:
-    def __init__(self, rlink_instance: RLink): # Typ-Hinweis auf RLink geändert
+    def __init__(self, rlink_instance: RLink): # Typ-Hinweis auf RLink
         """Initialisiert den Controller."""
         self.rlink = rlink_instance
         self.pressed_keys = set()
@@ -121,12 +120,12 @@ class KeyboardController:
                         if key_state == key_event.key_down: # Nur bei erstem Drücken
                             if key_name == 'h':
                                 self.horn_on = not self.horn_on
-                                print(f"\nHupe {'AN' if self.horn_on else 'AUS'}") # Newline für bessere Lesbarkeit
+                                print(f"\nHupe {'AN' if self.horn_on else 'AUS'}", flush=True)
                             elif key_name == 'l':
                                 self.lights_on = not self.lights_on
-                                print(f"\nLicht (DIP) {'AN' if self.lights_on else 'AUS'}") # Newline
+                                print(f"\nLicht (DIP) {'AN' if self.lights_on else 'AUS'}", flush=True)
                             elif key_name == 'q' or key_name == 'esc':
-                                print(f"\nBeenden durch '{key_name}' erkannt.") # Newline
+                                print(f"\nBeenden durch '{key_name}' erkannt.", flush=True)
                                 self.quit_event.set(); break
         except IOError as e:
              print(f"\nFehler beim Lesen vom Keyboard-Device (getrennt?): {e}", file=sys.stderr)
@@ -256,7 +255,7 @@ class KeyboardController:
 # --- Ende Klasse KeyboardController ---
 
 
-# --- Hauptprogrammablauf (Korrigiert für neuen RLink Wrapper) ---
+# --- Hauptprogrammablauf (Korrigiert für Wrapper mit interner Enumeration) ---
 if __name__ == "__main__":
     print("WARNUNG: Dieses Skript basiert auf dem funktionierenden Minimal-Wrapper.")
     print("         Es wird erwartet, dass die *originale* (fehlerhafte) udev-Regel aktiv ist,")
@@ -276,42 +275,15 @@ if __name__ == "__main__":
     controller = None     # Die KeyboardController Instanz
 
     try:
-        # --- Enumeration und Geräteauswahl ---
-        all_devices: list[RLinkDeviceInfo] = RLink.enumerate_devices() # Nutze die statische Methode
-        if not all_devices:
-            print("Keine RLink Geräte gefunden. Beende.")
-            sys.exit(1)
+        # --- Initialisierung mit Index (Wrapper macht Enumeration intern) ---
+        print("Initialisiere RLink für Gerät 0...")
+        # Erstelle Instanz, __init__ enumeriert und konstruiert
+        rlink_connection = RLink(device_index=0) # Verwende Index 0
 
-        print(f"{len(all_devices)} Gerät(e) zur Auswahl:")
-        for i, dev in enumerate(all_devices):
-            print(f"  [{i}] {dev.serial}: {dev.description}")
+        # Öffne die Verbindung
+        rlink_connection.open()
 
-        selected_index = -1
-        # Benutzerauswahl
-        while selected_index < 0 or selected_index >= len(all_devices):
-            try:
-                choice = input(f"Wähle Geräteindex [0-{len(all_devices)-1}] oder 'quit': ")
-                if choice.lower() == 'quit':
-                    print("Beende.")
-                    sys.exit(0)
-                selected_index = int(choice)
-                if selected_index < 0 or selected_index >= len(all_devices):
-                    print("Ungültiger Index.")
-            except ValueError:
-                print("Ungültige Eingabe, bitte eine Zahl eingeben.")
-
-        # Hole das ausgewählte RLinkDeviceInfo Objekt
-        selected_device_info = all_devices[selected_index]
-        print(f"\nVerbinde mit Gerät {selected_index} ({selected_device_info.serial})...")
-        # --- Ende Enumeration und Auswahl ---
-
-        # Initialisiere RLink Verbindung mit dem ausgewählten Geräte-Info-Objekt
-        # Verwende den Context Manager für automatisches Schließen/Zerstören (optional)
-        # with RLink(selected_device_info) as rlink_connection: # Alternative
-        rlink_connection = RLink(selected_device_info) # Erstelle Instanz
-        rlink_connection.open() # Öffne die Verbindung
-
-        # Initialisiere Lichter/Hupe/Achse auf definierten Zustand
+        # Initialisiere Lichter/Hupe/Achse
         rlink_connection.set_horn(False)
         rlink_connection.set_light(RLinkLight.DIP, False)
         rlink_connection.set_axis(SEAT_TILT_AXIS_ID, RLinkAxisDir.NONE)
