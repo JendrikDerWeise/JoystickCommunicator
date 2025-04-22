@@ -9,11 +9,11 @@ import os
 # Importiere den NEUEN minimalen Wrapper und die Enums
 try:
     from full_rlink_wrapper import (
-        MiniRlink, RLinkError, RLinkLight,
+        Rlink, RLinkError, RLinkLight,
         RLinkAxisId, RLinkAxisDir # Benötigte Enums
     )
 except ImportError as e:
-    print(f"Fehler: Konnte 'mini_rlink_wrapper_v2.py' nicht finden: {e}", file=sys.stderr)
+    print(f"Fehler: Konnte 'full_rlink_wrapper.py' nicht finden: {e}", file=sys.stderr)
     sys.exit(1)
 
 # Versuche, evdev zu importieren
