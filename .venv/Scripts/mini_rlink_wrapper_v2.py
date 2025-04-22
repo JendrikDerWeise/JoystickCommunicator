@@ -166,18 +166,19 @@ class MiniRlink:
                          f"msp_rlink_GetDevice für Index {device_index} fehlgeschlagen. Status: {status}, Erhaltener Pointer-Wert: {returned_ptr_value}")
 
                  # Speichere den Pointer-Wert, den die C-Funktion in devinfo_holder geschrieben hat
-                 self.devinfo = devinfo_holder.value  # .value gibt den eigentlichen Pointer-Wert zurück
+                 #self.devinfo = devinfo_holder.value  # .value gibt den eigentlichen Pointer-Wert zurück
                  # Optional: Behalte das ctypes-Objekt, falls du es brauchst
-                 # self._devinfo_c_void_p = devinfo_holder
-            print(f"Geräteinformation für Index {device_index} erhalten.")
+            self._devinfo_c_void_p = devinfo_holder
+            print(f"Geräteinformation für Index {device_index} erhalten (Pointer Objekt: {self._devinfo_c_void_p}).")
 
             # Destruct der Device-Liste wird hier nicht gemacht, da devinfo noch gebraucht wird
             # TODO: Klären, ob DevicesDestruct nach Construct aufgerufen werden muss/sollte. Annahme: Nein.
 
             print("Konstruiere RLink Objekt...")
-            self.handle = self._lib.msp_rlink_Construct(self.devinfo)
+            self.handle = self._lib.msp_rlink_Construct(self._devinfo_c_void_p)
             if not self.handle:
-                 raise RLinkError("msp_rlink_Construct fehlgeschlagen (NULL erhalten)")
+                raise RLinkError(
+                    f"msp_rlink_Construct fehlgeschlagen (NULL erhalten) bei Übergabe von devinfo={self._devinfo_c_void_p}")
             print(f"RLink Handle erhalten: {self.handle}")
 
         finally:
