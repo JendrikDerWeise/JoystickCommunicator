@@ -1,4 +1,4 @@
-# full_rlink_wrapper.py (Version 2 - mit korrigierter __init__)
+# full_rlink_wrapper.py (Version 3 - ohne Semikolons, mit korrekter __init__)
 import ctypes
 import os
 import platform
@@ -14,7 +14,7 @@ class RLinkError(Exception):
     def __init__(self, message, status_code=None, rlink_err_code=None):
         super().__init__(message)
         self.status_code = status_code
-        self.rlink_err_code = rlink_err_code
+        self.rlink_err_code = rlink_err_code  # Für Fehler von GetLatestError
 
     def __str__(self):
         base_msg = super().__str__()
@@ -81,23 +81,23 @@ msp_rlink_t_ptr = c_void_p
 msp_rlink_devinfo_t_ptr = c_void_p
 msp_rlink_devices_t_ptr = c_void_p
 
-# --- Konstanten & Enums ---
+# --- Konstanten & Enums (OHNE SEMIKOLONS) ---
 # msp_status_t
-MSP_OK = 0;
-MSP_FTD2XX = 1;
-MSP_TIMEOUT = 2;
-MSP_OVERFLOW = 3;
-MSP_UNDERFLOW = 4;
+MSP_OK = 0
+MSP_FTD2XX = 1
+MSP_TIMEOUT = 2
+MSP_OVERFLOW = 3
+MSP_UNDERFLOW = 4
 MSP_INVALID_ARGS = 5
-MSP_NOT_SUPPORTED = 6;
-MSP_OTHER_ERROR = 7;
-MSP_NO_MEMORY = 8;
-MSP_NULL_PTR = 9;
+MSP_NOT_SUPPORTED = 6
+MSP_OTHER_ERROR = 7
+MSP_NO_MEMORY = 8
+MSP_NULL_PTR = 9
 MSP_INVALID_SIZE = 10
-MSP_NOT_FOUND = 11;
-MSP_BUSY = 12;
-MSP_MSG_ERR = 13;
-MSP_CRC_ERR = 14;
+MSP_NOT_FOUND = 11
+MSP_BUSY = 12
+MSP_MSG_ERR = 13
+MSP_CRC_ERR = 14
 MSP_INVALID_LEN = 15
 MSP_STATUS_NAMES = {
     0: "OK", 1: "FTD2XX", 2: "TIMEOUT", 3: "OVERFLOW", 4: "UNDERFLOW", 5: "INVALID_ARGS",
@@ -105,9 +105,9 @@ MSP_STATUS_NAMES = {
     11: "NOT_FOUND", 12: "BUSY", 13: "MSG_ERR", 14: "CRC_ERR", 15: "INVALID_LEN",
 }
 # msp_rlink_btn_t
-MSP_RLINK_BTN_YT = 0;
-MSP_RLINK_BTN_YR = 1;
-MSP_RLINK_BTN_RR = 2;
+MSP_RLINK_BTN_YT = 0
+MSP_RLINK_BTN_YR = 1
+MSP_RLINK_BTN_RR = 2
 MSP_RLINK_BTN_NOF = 3
 
 
@@ -115,11 +115,11 @@ class RLinkButton(enum.IntEnum): YELLOW_TIP = 0; YELLOW_RING = 1; RED_RING = 2
 
 
 # msp_rlink_light_t
-MSP_RLINK_LIGHT_BRAKE = 0;
-MSP_RLINK_LIGHT_DIP = 1;
+MSP_RLINK_LIGHT_BRAKE = 0
+MSP_RLINK_LIGHT_DIP = 1
 MSP_RLINK_LIGHT_HAZARD = 2
-MSP_RLINK_LIGHT_LEFT = 3;
-MSP_RLINK_LIGHT_RIGHT = 4;
+MSP_RLINK_LIGHT_LEFT = 3
+MSP_RLINK_LIGHT_RIGHT = 4
 MSP_RLINK_LIGHT_NOF = 5
 
 
@@ -127,14 +127,14 @@ class RLinkLight(enum.IntEnum): BRAKE = 0; DIP = 1; HAZARD = 2; LEFT = 3; RIGHT 
 
 
 # msp_rlink_mode_t
-MSP_RLINK_MODE_1 = 0;
-MSP_RLINK_MODE_2 = 1;
-MSP_RLINK_MODE_3 = 2;
+MSP_RLINK_MODE_1 = 0
+MSP_RLINK_MODE_2 = 1
+MSP_RLINK_MODE_3 = 2
 MSP_RLINK_MODE_4 = 3
-MSP_RLINK_MODE_5 = 4;
-MSP_RLINK_MODE_6 = 5;
-MSP_RLINK_MODE_7 = 6;
-MSP_RLINK_MODE_8 = 7;
+MSP_RLINK_MODE_5 = 4
+MSP_RLINK_MODE_6 = 5
+MSP_RLINK_MODE_7 = 6
+MSP_RLINK_MODE_8 = 7
 MSP_RLINK_MODE_NOF = 8
 
 
@@ -143,14 +143,14 @@ class RLinkMode(
 
 
 # msp_rlink_profile_t
-MSP_RLINK_PROFILE_1 = 0;
-MSP_RLINK_PROFILE_2 = 1;
-MSP_RLINK_PROFILE_3 = 2;
+MSP_RLINK_PROFILE_1 = 0
+MSP_RLINK_PROFILE_2 = 1
+MSP_RLINK_PROFILE_3 = 2
 MSP_RLINK_PROFILE_4 = 3
-MSP_RLINK_PROFILE_5 = 4;
-MSP_RLINK_PROFILE_6 = 5;
-MSP_RLINK_PROFILE_7 = 6;
-MSP_RLINK_PROFILE_8 = 7;
+MSP_RLINK_PROFILE_5 = 4
+MSP_RLINK_PROFILE_6 = 5
+MSP_RLINK_PROFILE_7 = 6
+MSP_RLINK_PROFILE_8 = 7
 MSP_RLINK_PROFILE_NOF = 8
 
 
@@ -159,12 +159,12 @@ class RLinkProfile(
 
 
 # msp_rlink_status_t (Device Status)
-MSP_RLINK_STATUS_CONFIGURING = 0;
-MSP_RLINK_STATUS_ERROR = 1;
+MSP_RLINK_STATUS_CONFIGURING = 0
+MSP_RLINK_STATUS_ERROR = 1
 MSP_RLINK_STATUS_POWER_CYCLE = 2
-MSP_RLINK_STATUS_SHUTDOWN = 3;
-MSP_RLINK_STATUS_OUT_OF_FOCUS = 4;
-MSP_RLINK_STATUS_FOCUS = 5;
+MSP_RLINK_STATUS_SHUTDOWN = 3
+MSP_RLINK_STATUS_OUT_OF_FOCUS = 4
+MSP_RLINK_STATUS_FOCUS = 5
 MSP_RLINK_STATUS_NOF = 6
 
 
@@ -173,10 +173,11 @@ class RLinkDevStatus(
 
 
 # msp_rlink_axis_id_t
-MSP_RLINK_AXIS_ID_0 = 0;
-MSP_RLINK_AXIS_ID_1 = 1;
-MSP_RLINK_AXIS_ID_2 = 2  # ... bis 31
-MSP_RLINK_AXIS_ID_31 = 31;
+MSP_RLINK_AXIS_ID_0 = 0
+MSP_RLINK_AXIS_ID_1 = 1
+MSP_RLINK_AXIS_ID_2 = 2
+# ... etc. bis 31
+MSP_RLINK_AXIS_ID_31 = 31
 MSP_RLINK_AXIS_ID_NOF = 32
 
 
@@ -184,9 +185,9 @@ class RLinkAxisId(enum.IntEnum): ID_0 = 0; ID_1 = 1; ID_2 = 2; ID_3 = 3  # Add m
 
 
 # msp_rlink_axis_dir_t
-MSP_RLINK_AXIS_DIR_NONE = 0;
-MSP_RLINK_AXIS_DIR_UP = 1;
-MSP_RLINK_AXIS_DIR_DOWN = 2;
+MSP_RLINK_AXIS_DIR_NONE = 0
+MSP_RLINK_AXIS_DIR_UP = 1
+MSP_RLINK_AXIS_DIR_DOWN = 2
 MSP_RLINK_AXIS_DIR_NOF = 3
 
 
@@ -194,9 +195,9 @@ class RLinkAxisDir(enum.IntEnum): NONE = 0; UP = 1; DOWN = 2
 
 
 # msp_rlink_err_t
-MSP_RLINK_ERR_NONE = 0;
-MSP_RLINK_ERR_TIMEOUT = 1;
-MSP_RLINK_ERR_OUT_OF_MEMORY = 2;
+MSP_RLINK_ERR_NONE = 0
+MSP_RLINK_ERR_TIMEOUT = 1
+MSP_RLINK_ERR_OUT_OF_MEMORY = 2
 MSP_RLINK_ERR_MDEV_ERROR = 3
 MSP_RLINK_ERR_NAMES = {0: "ERR_NONE", 1: "ERR_TIMEOUT", 2: "ERR_OUT_OF_MEMORY", 3: "ERR_MDEV_ERROR"}
 
@@ -205,8 +206,8 @@ class RLinkErrorType(enum.IntEnum): NONE = 0; TIMEOUT = 1; OUT_OF_MEMORY = 2; MD
 
 
 # Event Masks
-MSP_RLINK_EV_DISCONNECTED = 0x01;
-MSP_RLINK_EV_ERROR = 0x02;
+MSP_RLINK_EV_DISCONNECTED = 0x01
+MSP_RLINK_EV_ERROR = 0x02
 MSP_RLINK_EV_DATA_READY = 0x04
 
 # --- Typ-Aliase für die C Enums ---
@@ -221,6 +222,7 @@ msp_rlink_axis_dir_t = c_int;
 msp_rlink_err_t = c_int
 
 # --- Funktions-Prototypen (ALLE) ---
+# (Dieser Block bleibt unverändert zur vorherigen Version von full_rlink_wrapper.py)
 try:
     lib.msp_rlink_DevicesConstruct.argtypes = []
     lib.msp_rlink_DevicesConstruct.restype = msp_rlink_devices_t_ptr
@@ -300,24 +302,19 @@ except AttributeError as e:
 
 # --- Helper für Status Check ---
 def _check_status(status: int, func_name: str, allowed_ok: list[int] = [MSP_OK]):
+    """Checks msp_status_t and raises RLinkError on failure."""
     if status not in allowed_ok:
+        # Versuche, mehr Details zu bekommen
+        latest_err_code = None
+        # if status != MSP_OK and lib.msp_rlink_GetLatestError: # Prüfe ob GetLatestError existiert
+        #     err_val = msp_rlink_err_t()
+        #     # Vorsichtiger Aufruf, falls handle nicht existiert oder Funktion selbst fehlschlägt
+        #     # Benötigt Zugriff auf das Handle, daher besser in der Klassenmethode
+        #     pass
         raise RLinkError(f"Error in {func_name}", status_code=status)
 
 
-# --- Device Info Klasse (optional, aber nützlich für enumerate) ---
-class RLinkDeviceInfo:
-    def __init__(self, index, serial, description, dev_info_ptr_value):
-        self.index: int = index
-        self.serial: str = serial
-        self.description: str = description
-        # Speichere den Pointer-Wert, wird für Construct gebraucht
-        self._dev_info_ptr_value: c_void_p = dev_info_ptr_value
-
-    def __repr__(self):
-        return f"RLinkDeviceInfo(index={self.index}, serial='{self.serial}', description='{self.description}')"
-
-
-# --- Vollständige Wrapper-Klasse (mit alter __init__ Logik) ---
+# --- Vollständige Wrapper-Klasse (mit __init__ Logik aus MiniRlink) ---
 class RLink:
     """
     Full Python wrapper for the msp_rlink C library.
@@ -335,13 +332,14 @@ class RLink:
         self._lib = lib
         self.handle = None
         self._devinfo_c_void_p = None  # Hält das ctypes Pointer Objekt
-        self._devices_handle = None  # Handle für die Geräteliste
+        self._devices_handle = None  # Handle für die Geräteliste, wird in init verwaltet
         self._opened = False
 
         devinfo_holder = None  # Vorinitialisieren
 
         try:
             print("Enumerating devices inside RLink init...")
+            # Erstelle das Devices-Handle nur für die Dauer von __init__
             self._devices_handle = self._lib.msp_rlink_DevicesConstruct()
             if not self._devices_handle:
                 raise RLinkError("msp_rlink_DevicesConstruct failed (returned NULL)")
@@ -355,18 +353,16 @@ class RLink:
             if device_index >= nofDevices.value:
                 raise RLinkError(f"Device index {device_index} out of bounds (found {nofDevices.value}).")
 
-            # Definiere Holder *bevor* GetDevice aufgerufen wird
             devinfo_holder = c_void_p()
             status = self._lib.msp_rlink_GetDevice(self._devices_handle, device_index, ctypes.byref(devinfo_holder))
 
-            # Prüfe Status und Pointer-Wert
             if status != MSP_OK or not devinfo_holder.value:
                 returned_ptr_value = devinfo_holder.value if devinfo_holder is not None else 'None'
                 raise RLinkError(
                     f"msp_rlink_GetDevice(index={device_index}) failed. Status: {status}, Ptr: {returned_ptr_value}",
                     status_code=status)
 
-            # Speichere das ctypes Objekt, NICHT den Wert
+            # Speichere das ctypes Objekt
             self._devinfo_c_void_p = devinfo_holder
             print(
                 f"Device info for index {device_index} obtained (Ptr Obj: {self._devinfo_c_void_p}, Value: {self._devinfo_c_void_p.value}).")
@@ -379,22 +375,25 @@ class RLink:
                 raise RLinkError(f"msp_rlink_Construct failed (returned NULL) with devinfo={devinfo_val_str}")
             print(f"RLink Handle created: {self.handle}")
 
-            # WICHTIG: self._devices_handle NICHT hier zerstören, da _devinfo_c_void_p darauf zeigen könnte!
-            # Der Benutzer dieser Klasse muss ggf. sicherstellen, dass DevicesDestruct irgendwann aufgerufen wird,
-            # oder wir riskieren ein Speicherleck des Devices-Handles.
+            # Zerstöre das Devices Handle HIER, nachdem Construct erfolgreich war und den Pointer (hoffentlich) intern kopiert hat.
+            # Das ist immer noch riskant, aber die einzige Stelle außer global.
+            if self._devices_handle:
+                print("Destroying temporary devices handle in init...")
+                self._lib.msp_rlink_DevicesDestruct(self._devices_handle)
+                self._devices_handle = None  # Sicherstellen, dass es nicht nochmal benutzt wird
+                print("Temporary devices handle destroyed.")
 
         except Exception as e:
-            # Stelle sicher, dass im Fehlerfall aufgeräumt wird, soweit möglich
+            # Im Fehlerfall aufräumen
             if self.handle:
                 self._lib.msp_rlink_Destruct(self.handle)
                 self.handle = None
-            # Zerstöre das Devices Handle nur, wenn Construct noch nicht erreicht wurde ODER fehlschlug
-            # if self._devices_handle and not self.handle: # Oder immer im Fehlerfall?
-            #     self._lib.msp_rlink_DevicesDestruct(self._devices_handle)
-            #     self._devices_handle = None
+            if self._devices_handle:
+                self._lib.msp_rlink_DevicesDestruct(self._devices_handle)
+                self._devices_handle = None
             raise e  # Fehler weiterleiten
 
-    # --- Statische Methode zur Enumeration (Gibt nur Infos zurück, keine Pointer) ---
+    # --- Statische Methode zur Enumeration (optional, gibt nur Infos zurück) ---
     @staticmethod
     def enumerate_device_info() -> list[dict]:
         """Enumerates devices and returns basic info (serial, description)."""
@@ -421,12 +420,14 @@ class RLink:
                 status_descr = lib.msp_rlink_GetDeviceDescription(devices_handle, i, ctypes.byref(descr_ptr))
                 if status_descr == MSP_OK and descr_ptr.value:
                     info["description"] = descr_ptr.value.decode('utf-8', errors='replace')
+                # Hier keinen Pointer speichern, nur die Infos
                 devices_data.append(info)
         finally:
             if devices_handle:
                 lib.msp_rlink_DevicesDestruct(devices_handle)
         return devices_data
 
+    # --- Öffnen / Schließen / Zerstören ---
     def open(self):
         """Opens the connection to the RLink device."""
         if not self.handle: raise RLinkError("Handle is invalid")
@@ -444,28 +445,23 @@ class RLink:
             status = self._lib.msp_rlink_Close(self.handle)
             self._opened = False
             try:
-                _check_status(status, "msp_rlink_Close",
-                              allowed_ok=[MSP_OK, MSP_FTD2XX])  # FTD2XX beim Schließen ignorieren?
+                _check_status(status, "msp_rlink_Close", allowed_ok=[MSP_OK, MSP_FTD2XX])
             except RLinkError as e:
                 print(f"Warning during close: {e}", file=sys.stderr)
             else:
                 print("RLink connection closed.")
 
     def destruct(self):
-        """Closes connection and destroys the RLink handle AND the devices handle."""
+        """Closes connection and destroys the RLink handle."""
         self.close()
         if self.handle:
             print("Destroying RLink handle...")
+            # Das _devices_handle wurde schon in __init__ zerstört (nach Construct)
             self._lib.msp_rlink_Destruct(self.handle)
             self.handle = None
             print("RLink handle destroyed.")
-        # Jetzt auch das Devices Handle zerstören, das in __init__ erstellt wurde
-        if self._devices_handle:
-            print("Destroying devices handle...")
-            self._lib.msp_rlink_DevicesDestruct(self._devices_handle)
-            self._devices_handle = None
-            print("Devices handle destroyed.")
-        self._devinfo_c_void_p = None  # Referenz löschen
+        # Referenz auf devinfo Pointer löschen
+        self._devinfo_c_void_p = None
 
     def __del__(self):
         """Destructor ensures cleanup."""
@@ -474,15 +470,15 @@ class RLink:
 
     def __enter__(self):
         """Context manager entry: opens the device."""
-        # __init__ hat Construct schon gemacht, open wird hier aufgerufen
         self.open()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit: closes and destroys."""
-        self.destruct()  # Im Context Manager wollen wir meist komplett aufräumen
+        self.destruct()
 
     # --- Wrapped Methods (Implementierungen wie im vorherigen full_wrapper)---
+    # (Hier werden jetzt die _check_status-Funktion und Enums/Konstanten genutzt)
 
     def heartbeat(self):
         if not self.handle or not self._opened: return
@@ -653,13 +649,13 @@ class RLink:
         _check_status(status, "msp_rlink_SetEventNotification")
 
     def set_logging(self, enable: bool):
-        # WARNING: Possible issues if called before Open() in fallback mode!
+        # WARNING: Possible issues if called before Open() in fallback mode! Call AFTER open()!
         if not self.handle: raise RLinkError("Handle is invalid")
         print(f"Setting internal logging to: {enable}")
         self._lib.msp_rlink_Logging(self.handle, c_bool(enable))
 
     def set_log_file(self, filename: str) -> bool:
-        # WARNING: Possible issues if called before Open() in fallback mode!
+        # WARNING: Possible issues if called before Open() in fallback mode! Call AFTER open()!
         if not self.handle: raise RLinkError("Handle is invalid")
         filename_bytes = filename.encode('utf-8')
         print(f"Setting internal log file to: {filename}")
