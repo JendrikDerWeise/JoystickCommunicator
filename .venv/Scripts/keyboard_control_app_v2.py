@@ -50,7 +50,7 @@ KEY_MAP = {
 
 # --- Tastatur-Controller Klasse (mit Lock und korrigierter Logik) ---
 class KeyboardController:
-    def __init__(self, rlink_instance: MiniRlink):
+    def __init__(self, rlink_instance: RLink):
         """Initialisiert den Controller."""
         self.rlink = rlink_instance
         self.pressed_keys = set()
@@ -274,7 +274,7 @@ if __name__ == "__main__":
     controller = None
     try:
         # Initialisiere RLink Verbindung zum ersten gefundenen Gerät
-        rlink_connection = MiniRlink(device_index=0)
+        rlink_connection = RLink(device_index=0)
         rlink_connection.open() # Öffne die Verbindung
 
         # Initialisiere Lichter/Hupe/Achse auf definierten Zustand
