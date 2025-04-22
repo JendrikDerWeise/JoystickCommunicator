@@ -131,17 +131,22 @@ class MiniRlink:
     NUTZT DEN RAW-USB-FALLBACK der Bibliothek.
     Setzt voraus, dass die *originale, fehlerhafte* udev-Regel aktiv ist!
     """
+
+    # Innerhalb der Klasse MiniRlink in mini_rlink_wrapper_v2.py
     def __init__(self, device_index=0):
         self.handle = None
-        self.devinfo = None
+        self._devinfo_c_void_p = None  # Attribut initialisieren
         self._opened = False
-        self._lib = lib # Referenz halten
+        self._lib = lib  # Referenz halten
 
-        devices_handle = self._lib.msp_rlink_DevicesConstruct()
-        if not devices_handle:
-            raise RLinkError("msp_rlink_DevicesConstruct fehlgeschlagen (NULL erhalten)")
+        devices_handle = None  # Sicherstellen, dass Variable existiert
+        devinfo_holder = None  # Sicherstellen, dass Variable existiert
 
         try:
+            devices_handle = self._lib.msp_rlink_DevicesConstruct()
+            if not devices_handle:
+                raise RLinkError("msp_rlink_DevicesConstruct fehlgeschlagen (NULL erhalten)")
+
             nofDevices = c_size_t(0)
             status = self._lib.msp_rlink_GetNumberOfDevices(devices_handle, ctypes.byref(nofDevices))
             if status != MSP_OK:
@@ -149,42 +154,50 @@ class MiniRlink:
             if nofDevices.value == 0:
                 raise RLinkError("Keine RLink-Geräte gefunden bei Enumeration.")
             if device_index >= nofDevices.value:
-                 raise RLinkError(f"Geräteindex {device_index} ungültig (nur {nofDevices.value} Geräte gefunden).")
+                raise RLinkError(f"Geräteindex {device_index} ungültig (nur {nofDevices.value} Geräte gefunden).")
 
-                 # Erstelle eine Variable, die den Output-Pointer (msp_rlink_devinfo_t* / void*) aufnehmen kann
-                 devinfo_holder = c_void_p()
+            # --- Korrektur ---
+            # Definiere den Holder HIER, *bevor* er mit byref verwendet wird
+            devinfo_holder = c_void_p()
 
-                 # Übergebe die Adresse dieser Variable an die C-Funktion.
-                 # byref(devinfo_holder) hat den korrekten Typ POINTER(c_void_p)
-                 status = self._lib.msp_rlink_GetDevice(devices_handle, device_index, ctypes.byref(devinfo_holder))
+            status = self._lib.msp_rlink_GetDevice(devices_handle, device_index, ctypes.byref(devinfo_holder))
 
-                 # Prüfe Status und ob der zurückgegebene Pointer gültig ist (nicht NULL)
-                 if status != MSP_OK or not devinfo_holder.value:  # .value prüft auf non-NULL
-                     # Den Pointer-Wert ausgeben, falls vorhanden, auch bei Fehlerstatus
-                     returned_ptr_value = devinfo_holder.value if devinfo_holder else 'None'
-                     raise RLinkError(
-                         f"msp_rlink_GetDevice für Index {device_index} fehlgeschlagen. Status: {status}, Erhaltener Pointer-Wert: {returned_ptr_value}")
+            # Prüfe Status UND ob der zurückgegebene Pointer gültig ist (nicht NULL)
+            # WICHTIG: Diese Prüfung erfolgt, BEVOR wir self._devinfo_c_void_p zuweisen
+            if status != MSP_OK or not devinfo_holder.value:
+                returned_ptr_value = devinfo_holder.value if devinfo_holder is not None else 'None (holder not assigned)'
+                raise RLinkError(
+                    f"msp_rlink_GetDevice für Index {device_index} fehlgeschlagen. Status: {status}, Erhaltener Pointer-Wert: {returned_ptr_value}")
 
-                 # Speichere den Pointer-Wert, den die C-Funktion in devinfo_holder geschrieben hat
-                 #self.devinfo = devinfo_holder.value  # .value gibt den eigentlichen Pointer-Wert zurück
-                 # Optional: Behalte das ctypes-Objekt, falls du es brauchst
+            # Nur wenn GetDevice erfolgreich war, weise das Ergebnis dem Attribut zu
             self._devinfo_c_void_p = devinfo_holder
-            print(f"Geräteinformation für Index {device_index} erhalten (Pointer Objekt: {self._devinfo_c_void_p}).")
-
-            # Destruct der Device-Liste wird hier nicht gemacht, da devinfo noch gebraucht wird
-            # TODO: Klären, ob DevicesDestruct nach Construct aufgerufen werden muss/sollte. Annahme: Nein.
+            print(
+                f"Geräteinformation für Index {device_index} erhalten (Pointer Objekt: {self._devinfo_c_void_p}, Wert: {self._devinfo_c_void_p.value}).")
+            # --- Ende Korrektur ---
 
             print("Konstruiere RLink Objekt...")
+            # Übergebe das ctypes c_void_p Objekt direkt
+            # self._devinfo_c_void_p sollte hier definitiv einen Wert haben
+            if self._devinfo_c_void_p is None:
+                raise RLinkError("Interner Fehler: _devinfo_c_void_p ist None vor Construct")
+
             self.handle = self._lib.msp_rlink_Construct(self._devinfo_c_void_p)
             if not self.handle:
+                # Gib den Wert aus, der übergeben wurde, um Debugging zu erleichtern
+                devinfo_val_str = self._devinfo_c_void_p.value if self._devinfo_c_void_p else "None"
                 raise RLinkError(
-                    f"msp_rlink_Construct fehlgeschlagen (NULL erhalten) bei Übergabe von devinfo={self._devinfo_c_void_p}")
+                    f"msp_rlink_Construct fehlgeschlagen (NULL erhalten) bei Übergabe von devinfo={devinfo_val_str}")
             print(f"RLink Handle erhalten: {self.handle}")
 
         finally:
-            # TODO: DevicesDestruct aufrufen? Wenn ja, wann?
-            # self._lib.msp_rlink_DevicesDestruct(devices_handle) # Möglicherweise hier?
-            pass
+            # DevicesDestruct sollte wahrscheinlich erst ganz am Ende aufgerufen werden,
+            # wenn alle RLink-Instanzen, die devinfo davon nutzen, zerstört sind.
+            # Wir lassen es hier weg, um Seiteneffekte zu vermeiden.
+            # Das ist ein potenzielles Memory Leak, wenn devinfo nicht anderweitig freigegeben wird!
+            if devices_handle:
+                # self._lib.msp_rlink_DevicesDestruct(devices_handle)
+                # print("DEBUG: Devices handle NICHT zerstört.")
+                pass
 
     def open(self):
         if not self.handle: raise RLinkError("Handle ist ungültig.")
