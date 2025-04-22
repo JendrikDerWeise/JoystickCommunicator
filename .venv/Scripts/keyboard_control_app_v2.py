@@ -219,6 +219,11 @@ class KeyboardController:
                 if 'd' in current_pressed: target_x += MOVEMENT_SPEED
                 target_x = max(-127, min(127, target_x))
                 target_y = max(-127, min(127, target_y))
+                with self.keys_lock:  # Lock auch hier, falls Zugriff auf self.pressed_keys
+                    current_pressed_str = ",".join(sorted(list(self.pressed_keys)))
+                print(f"\rKeys: [{current_pressed_str:<10s}] | Target: ({target_x:+4d},{target_y:+4d})", end="",
+                      flush=True)
+                # --- ENDE DEBUG-AUSGABE ---
 
                 # 2. Bewegungs-Befehl immer senden
                 self.rlink.set_xy(target_x, target_y)
@@ -242,12 +247,16 @@ class KeyboardController:
                 # 5. Schlafen (WICHTIG und AKTIV!)
                 time.sleep(LOOP_CONTROL_SLEEP)
 
+
+
         except KeyboardInterrupt:
             print("\nCtrl+C erkannt, beende Steuerschleife.", flush=True)
             self.quit_event.set()
         except Exception as e:
             print(f"\nFehler in der Steuerschleife: {e}", file=sys.stderr)
             self.quit_event.set()
+        finally:
+            print()  # Füge einen abschließenden Zeilenumbruch hinzu
 
         print("Steuerschleife beendet.")
 
