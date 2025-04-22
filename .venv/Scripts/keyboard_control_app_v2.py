@@ -22,7 +22,7 @@ except ImportError:
 
 LOOP_CONTROL_SLEEP = 0.1
 HEARTBEAT_INTERVAL = 0.5
-MOVEMENT_SPEED = 10
+MOVEMENT_SPEED = 100
 
 KEY_MAP = {
     ecodes.KEY_W: 'w',
