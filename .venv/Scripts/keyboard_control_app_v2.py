@@ -22,7 +22,7 @@ except ImportError:
 
 LOOP_CONTROL_SLEEP = 0.1
 HEARTBEAT_INTERVAL = 0.5
-MOVEMENT_SPEED = 100
+MOVEMENT_SPEED = 10
 
 KEY_MAP = {
     ecodes.KEY_W: 'w',
@@ -239,11 +239,6 @@ class KeyboardController:
                     # Beispiel: Schalte Abblendlicht (DIP)
                     self.rlink.set_light(RLinkLight.DIP, self.lights_on)
                     self._last_sent_light = self.lights_on
-
-                # 4. Heartbeat
-                #if current_time - last_heartbeat_time >= HEARTBEAT_INTERVAL:
-
-                    #last_heartbeat_time = current_time
 
                 # 5. Schlafen (WICHTIG und AKTIV!)
                 time.sleep(LOOP_CONTROL_SLEEP)

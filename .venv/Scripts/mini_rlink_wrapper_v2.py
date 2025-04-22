@@ -50,6 +50,7 @@ c_uint8 = ctypes.c_uint8
 c_size_t = ctypes.c_size_t
 c_void_p = ctypes.c_void_p
 c_bool = ctypes.c_bool
+c_float = ctypes.c_float
 c_int = ctypes.c_int # Für Status und Enums
 
 # --- Konstanten ---
@@ -116,6 +117,14 @@ try:
     # Annahme: msp_rlink_light_t ist int-basiert
     lib.msp_rlink_SetLight.argtypes = [c_void_p, c_int, c_bool]
     lib.msp_rlink_SetLight.restype = c_int # msp_status_t
+
+    lib.msp_rlink_GetSpeed.argtypes = [
+        c_void_p,  # self
+        ctypes.POINTER(c_uint8),  # speed (output)
+        ctypes.POINTER(c_float),  # trueSpeed (output)
+        ctypes.POINTER(c_uint8)  # speedLimitApplied (output)
+    ]
+    lib.msp_rlink_GetSpeed.restype = c_int  # msp_status_t
 
 except AttributeError as e:
     print(f"Fehler beim Definieren der Funktionsprototypen: {e}", file=sys.stderr)
@@ -250,6 +259,41 @@ class MiniRlink:
         status = self._lib.msp_rlink_SetLight(self.handle, light_c, c_bool(enable))
         if status != MSP_OK:
              print(f"Warnung: msp_rlink_SetLight fehlgeschlagen, Status: {status}", file=sys.stderr)
+
+    def get_speed(self) -> tuple[int, float, int]:
+        """Ruft die aktuellen Geschwindigkeitswerte vom RLink-Gerät ab.
+
+        Returns:
+            tuple[int, float, int]: Ein Tupel enthaltend:
+                - speed (uint8_t): Der eingestellte Geschwindigkeitswert/Stufe.
+                - trueSpeed (float): Die tatsächliche Geschwindigkeit (Einheit unklar, evtl. m/s?).
+                - speedLimitApplied (uint8_t): Flag/Wert, ob ein Geschwindigkeitslimit aktiv ist.
+        Raises:
+            RLinkError: Wenn die Verbindung nicht offen ist oder der C-Aufruf fehlschlägt.
+        """
+        if not self.handle or not self._opened:
+            raise RLinkError("RLink ist nicht geöffnet oder Handle ungültig")
+
+        # Variablen für die Output-Parameter erstellen
+        speed_val = c_uint8()
+        true_speed_val = c_float()
+        limit_applied_val = c_uint8()
+
+        # C-Funktion aufrufen
+        status = self._lib.msp_rlink_GetSpeed(
+            self.handle,
+            ctypes.byref(speed_val),
+            ctypes.byref(true_speed_val),
+            ctypes.byref(limit_applied_val)
+        )
+
+        # Status prüfen
+        if status != MSP_OK:
+            # TODO: Füge MSP_STATUS_NAMES hinzu für bessere Fehlermeldungen, falls gewünscht
+            raise RLinkError(f"msp_rlink_GetSpeed fehlgeschlagen, Status: {status}")
+
+        # Erfolgreich -> Werte zurückgeben
+        return speed_val.value, true_speed_val.value, limit_applied_val.value
 
     def __del__(self):
         self.close() # Versuch zu schließen
