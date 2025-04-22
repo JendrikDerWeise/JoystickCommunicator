@@ -20,7 +20,7 @@ except ImportError:
     print("Bitte installiere sie mit: pip3 install evdev", file=sys.stderr)
     sys.exit(1)
 
-LOOP_CONTROL_SLEEP = 0.1
+LOOP_CONTROL_SLEEP = 0.02
 HEARTBEAT_INTERVAL = 0.5
 MOVEMENT_SPEED = 100
 
