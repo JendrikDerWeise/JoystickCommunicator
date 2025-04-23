@@ -7,14 +7,14 @@ import enum
 import time  # Für eventuelle Delays
 
 
-# --- Fehlerklasse ---
+# --- Exceptionclass ---
 class RLinkError(Exception):
     """Custom exception for RLink errors."""
 
     def __init__(self, message, status_code=None, rlink_err_code=None):
         super().__init__(message)
         self.status_code = status_code
-        self.rlink_err_code = rlink_err_code  # Für Fehler von GetLatestError
+        self.rlink_err_code = rlink_err_code
 
     def __str__(self):
         base_msg = super().__str__()
@@ -31,7 +31,7 @@ class RLinkError(Exception):
             return base_msg
 
 
-# --- Pfad zur Bibliothek ---
+# --- Link to library ---
 LIB_PATH = "/usr/local/lib/libMspRlink.so"
 try:
     script_dir = os.path.dirname(__file__) if '__file__' in locals() else '.'
@@ -52,7 +52,7 @@ except NameError:
 except FileNotFoundError:
     raise FileNotFoundError(f"Shared library libMspRlink.so not found at expected paths like: {LIB_PATH}")
 
-# --- Bibliothek laden ---
+# --- load lib ---
 try:
     lib = ctypes.CDLL(LIB_PATH)
     print(f"Successfully loaded shared library: {LIB_PATH}")
@@ -60,7 +60,7 @@ except OSError as e:
     print(f"Error loading shared library from {LIB_PATH}: {e}", file=sys.stderr)
     sys.exit(1)
 
-# --- C Typen ---
+# --- C Types ---
 c_int8 = ctypes.c_int8;
 c_uint8 = ctypes.c_uint8;
 c_int16 = ctypes.c_int16
@@ -76,12 +76,12 @@ c_int = ctypes.c_int
 c_uint = ctypes.c_uint;
 c_char_p = ctypes.c_char_p
 
-# Opaque Pointer Typen
+# Opaque Pointer Types
 msp_rlink_t_ptr = c_void_p
 msp_rlink_devinfo_t_ptr = c_void_p
 msp_rlink_devices_t_ptr = c_void_p
 
-# --- Konstanten & Enums (OHNE SEMIKOLONS) ---
+# --- Constants & Enums ---
 # msp_status_t
 MSP_OK = 0
 MSP_FTD2XX = 1
@@ -210,7 +210,7 @@ MSP_RLINK_EV_DISCONNECTED = 0x01
 MSP_RLINK_EV_ERROR = 0x02
 MSP_RLINK_EV_DATA_READY = 0x04
 
-# --- Typ-Aliase für die C Enums ---
+# --- Typ-Aliase for C Enums ---
 msp_status_t = c_int;
 msp_rlink_btn_t = c_int;
 msp_rlink_light_t = c_int;
@@ -221,8 +221,7 @@ msp_rlink_axis_id_t = c_int
 msp_rlink_axis_dir_t = c_int;
 msp_rlink_err_t = c_int
 
-# --- Funktions-Prototypen (ALLE) ---
-# (Dieser Block bleibt unverändert zur vorherigen Version von full_rlink_wrapper.py)
+# --- Function-prototypes ---
 try:
     lib.msp_rlink_DevicesConstruct.argtypes = []
     lib.msp_rlink_DevicesConstruct.restype = msp_rlink_devices_t_ptr
@@ -300,21 +299,15 @@ except AttributeError as e:
     sys.exit(1)
 
 
-# --- Helper für Status Check ---
+# --- Helper for Status Check ---
 def _check_status(status: int, func_name: str, allowed_ok: list[int] = [MSP_OK]):
     """Checks msp_status_t and raises RLinkError on failure."""
     if status not in allowed_ok:
-        # Versuche, mehr Details zu bekommen
         latest_err_code = None
-        # if status != MSP_OK and lib.msp_rlink_GetLatestError: # Prüfe ob GetLatestError existiert
-        #     err_val = msp_rlink_err_t()
-        #     # Vorsichtiger Aufruf, falls handle nicht existiert oder Funktion selbst fehlschlägt
-        #     # Benötigt Zugriff auf das Handle, daher besser in der Klassenmethode
-        #     pass
         raise RLinkError(f"Error in {func_name}", status_code=status)
 
 
-# --- Vollständige Wrapper-Klasse (mit __init__ Logik aus MiniRlink) ---
+# --- Wrapper-class ---
 class RLink:
     """
     Full Python wrapper for the msp_rlink C library.
@@ -339,7 +332,7 @@ class RLink:
 
         try:
             print("Enumerating devices inside RLink init...")
-            # Erstelle das Devices-Handle nur für die Dauer von __init__
+            # Devices-Handle only temporary for __init__
             self._devices_handle = self._lib.msp_rlink_DevicesConstruct()
             if not self._devices_handle:
                 raise RLinkError("msp_rlink_DevicesConstruct failed (returned NULL)")
@@ -362,7 +355,7 @@ class RLink:
                     f"msp_rlink_GetDevice(index={device_index}) failed. Status: {status}, Ptr: {returned_ptr_value}",
                     status_code=status)
 
-            # Speichere das ctypes Objekt
+            # Save the ctypes object
             self._devinfo_c_void_p = devinfo_holder
             print(
                 f"Device info for index {device_index} obtained (Ptr Obj: {self._devinfo_c_void_p}, Value: {self._devinfo_c_void_p.value}).")
@@ -375,8 +368,8 @@ class RLink:
                 raise RLinkError(f"msp_rlink_Construct failed (returned NULL) with devinfo={devinfo_val_str}")
             print(f"RLink Handle created: {self.handle}")
 
-            # Zerstöre das Devices Handle HIER, nachdem Construct erfolgreich war und den Pointer (hoffentlich) intern kopiert hat.
-            # Das ist immer noch riskant, aber die einzige Stelle außer global.
+            # Destroy the device handle here, after construct was successfull and pointer was copied.
+
             if self._devices_handle:
                 print("Destroying temporary devices handle in init...")
                 self._lib.msp_rlink_DevicesDestruct(self._devices_handle)
@@ -384,7 +377,7 @@ class RLink:
                 print("Temporary devices handle destroyed.")
 
         except Exception as e:
-            # Im Fehlerfall aufräumen
+            # clean up on error
             if self.handle:
                 self._lib.msp_rlink_Destruct(self.handle)
                 self.handle = None
@@ -393,7 +386,6 @@ class RLink:
                 self._devices_handle = None
             raise e  # Fehler weiterleiten
 
-    # --- Statische Methode zur Enumeration (optional, gibt nur Infos zurück) ---
     @staticmethod
     def enumerate_device_info() -> list[dict]:
         """Enumerates devices and returns basic info (serial, description)."""
@@ -427,7 +419,7 @@ class RLink:
                 lib.msp_rlink_DevicesDestruct(devices_handle)
         return devices_data
 
-    # --- Öffnen / Schließen / Zerstören ---
+    # --- open / close / destroy ---
     def open(self):
         """Opens the connection to the RLink device."""
         if not self.handle: raise RLinkError("Handle is invalid")
@@ -460,12 +452,11 @@ class RLink:
             self._lib.msp_rlink_Destruct(self.handle)
             self.handle = None
             print("RLink handle destroyed.")
-        # Referenz auf devinfo Pointer löschen
+        # delete devinfo Pointer reference
         self._devinfo_c_void_p = None
 
     def __del__(self):
         """Destructor ensures cleanup."""
-        # print("DEBUG: RLink __del__ aufgerufen")
         self.destruct()
 
     def __enter__(self):
@@ -477,8 +468,7 @@ class RLink:
         """Context manager exit: closes and destroys."""
         self.destruct()
 
-    # --- Wrapped Methods (Implementierungen wie im vorherigen full_wrapper)---
-    # (Hier werden jetzt die _check_status-Funktion und Enums/Konstanten genutzt)
+    # --- Wrapped Methods ---
 
     def heartbeat(self):
         if not self.handle or not self._opened: return
@@ -663,4 +653,4 @@ class RLink:
         if not result: print(f"Warning: Failed to set log file '{filename}'", file=sys.stderr)
         return result
 
-# --- Ende Klasse RLink ---
+# --- end class RLink ---
