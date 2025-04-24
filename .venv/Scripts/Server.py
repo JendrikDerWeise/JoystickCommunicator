@@ -7,7 +7,7 @@ import sys
 import socket  # Für UDP-Broadcast
 import random
 import struct
-from WheelchairControl import WheelchairControl
+from WheelchairControlReal import WheelchairControlReal
 
 # --- Konstanten ---
 HEARTBEAT_INTERVAL = 2  # Sekunden (Heartbeat-Intervall vom *Client*)
