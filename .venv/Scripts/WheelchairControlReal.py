@@ -205,7 +205,9 @@ class WheelchairControlReal:
             return
 
         x, y = direction
-        x = int(x)*100; y = int(y)*100 # Sicherstellen, dass es ints sind
+        x = x+100
+        y = y+100
+        x = int(x); y = int(y) # Sicherstellen, dass es ints sind
 
         if self._tilt_mode_active:
             # --- KANTELUNGSMODUS ---
