@@ -268,6 +268,9 @@ class WheelchairControlReal:
 
         return self._actual_gear
 
+    def get_actual_gear(self):
+        return self._actual_gear
+
 # --- Beispielhafte Nutzung ---
 # if __name__ == '__main__':
 #     print("Starte Beispiel für WheelchairControlReal...")
