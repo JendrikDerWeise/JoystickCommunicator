@@ -289,6 +289,8 @@ def run_server():
                     elif topic == b"joystickPos":
                         x = from_network_order(message[0:4], 'f')
                         y = from_network_order(message[4:8], 'f')
+
+                        print(str(x) + " " + str(y))
                         direction = (x, y)
                         wheelchair.set_direction(direction)
                     #elif topic == b"gear":

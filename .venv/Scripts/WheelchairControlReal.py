@@ -206,7 +206,6 @@ class WheelchairControlReal:
 
         x, y = direction
         x = int(x)*100; y = int(y)*100 # Sicherstellen, dass es ints sind
-        print(str(x) + " " + str(y))
 
         if self._tilt_mode_active:
             # --- KANTELUNGSMODUS ---
