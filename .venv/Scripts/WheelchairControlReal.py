@@ -20,7 +20,7 @@ except ImportError as e:
     sys.exit(1)
 
 # --- Konfiguration ---
-HEARTBEAT_INTERVAL = 0.4 # Sekunden zwischen Heartbeats
+HEARTBEAT_INTERVAL = 0.1 # Sekunden zwischen Heartbeats
 # !!! WICHTIG: PASSE DIESE ID AN DEINE SITZKANTELUNG AN !!!
 SEAT_TILT_AXIS_ID = RLinkAxisId.ID_0 # <-- ÄNDERN ZUM TESTEN
 # Schwellenwert für Joystick Y-Achse zur Aktivierung der Kantelung
@@ -208,6 +208,11 @@ class WheelchairControlReal:
         x = x+100
         y = y+100
         x = int(x); y = int(y) # Sicherstellen, dass es ints sind
+        deadzone_threshold_scaled = 25  # Beispiel: Werte unter +/- 15 ignorieren (anpassen!)
+        if abs(x) < deadzone_threshold_scaled:
+            x = 0
+        if abs(y) < deadzone_threshold_scaled:
+            y = 0
 
         if self._tilt_mode_active:
             # --- KANTELUNGSMODUS ---
