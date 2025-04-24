@@ -116,7 +116,7 @@ def get_magic_leap_ip_adb():
 
             # Suche nach der Zeile, die "wlan0" oder "usb0" enthält (oder den Namen des Netzwerkadapters)
             for line in result.stdout.splitlines():
-                if "dev mlnet0" in line:  # <---  Anpassen, falls nötig!
+                if "dev mlnet0" or "eth1" in line:  # <---  Anpassen, falls nötig!
                     # Extrahiere die IP-Adresse nach "src"
                     match = re.search(r'src (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', line)
                     if match:
