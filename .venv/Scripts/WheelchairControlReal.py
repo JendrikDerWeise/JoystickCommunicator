@@ -269,53 +269,53 @@ class WheelchairControlReal:
         return self._actual_gear
 
 # --- Beispielhafte Nutzung ---
-if __name__ == '__main__':
-    print("Starte Beispiel für WheelchairControlReal...")
-    # WICHTIG: Setzt funktionierenden Wrapper und korrekte udev-Regel/Setup voraus!
-    #         (In diesem Fall: Originale, fehlerhafte udev-Regel)
-    wheelchair = None
-    try:
-        wheelchair = WheelchairControlReal(device_index=0)
-
-        print("\n--- Test Kommandos ---")
-        print("Aktiviere Kantelungsmodus...")
-        wheelchair.on_kantelung(True)
-        time.sleep(0.5)
-
-        print("Sende Kantelungsbefehl (HOCH)...")
-        wheelchair.set_direction((0, 100)) # Y=100 -> UP
-        time.sleep(3)
-
-        print("Stoppe Kantelung (Joystick Mitte)...")
-        wheelchair.set_direction((0, 0)) # Y=0 -> NONE
-        time.sleep(1)
-
-        print("Deaktiviere Kantelungsmodus...")
-        wheelchair.on_kantelung(False)
-        time.sleep(0.5)
-
-        print("Fahre vorwärts...")
-        wheelchair.set_direction((0, 50))
-        time.sleep(2)
-
-        print("Stoppe...")
-        wheelchair.set_direction((0, 0))
-        time.sleep(1)
-
-        # Geschwindigkeit lesen
-        speed = wheelchair.get_wheelchair_speed()
-        print(f"Aktuelle Geschwindigkeit (trueSpeed): {speed:.2f}")
-
-    except ConnectionError as e:
-         print(f"Verbindung zum Rollstuhl konnte nicht hergestellt werden: {e}")
-    except RLinkError as e:
-         print(f"Laufzeitfehler bei RLink-Kommunikation: {e}")
-    except Exception as e:
-        print(f"Ein unerwarteter Fehler ist aufgetreten: {e}")
-        import traceback
-        traceback.print_exc()
-    finally:
-        if wheelchair:
-            wheelchair.shutdown()
-
-    print("\nBeispiel beendet.")
+# if __name__ == '__main__':
+#     print("Starte Beispiel für WheelchairControlReal...")
+#     # WICHTIG: Setzt funktionierenden Wrapper und korrekte udev-Regel/Setup voraus!
+#     #         (In diesem Fall: Originale, fehlerhafte udev-Regel)
+#     wheelchair = None
+#     try:
+#         wheelchair = WheelchairControlReal(device_index=0)
+#
+#         print("\n--- Test Kommandos ---")
+#         print("Aktiviere Kantelungsmodus...")
+#         wheelchair.on_kantelung(True)
+#         time.sleep(0.5)
+#
+#         print("Sende Kantelungsbefehl (HOCH)...")
+#         wheelchair.set_direction((0, 100)) # Y=100 -> UP
+#         time.sleep(3)
+#
+#         print("Stoppe Kantelung (Joystick Mitte)...")
+#         wheelchair.set_direction((0, 0)) # Y=0 -> NONE
+#         time.sleep(1)
+#
+#         print("Deaktiviere Kantelungsmodus...")
+#         wheelchair.on_kantelung(False)
+#         time.sleep(0.5)
+#
+#         print("Fahre vorwärts...")
+#         wheelchair.set_direction((0, 50))
+#         time.sleep(2)
+#
+#         print("Stoppe...")
+#         wheelchair.set_direction((0, 0))
+#         time.sleep(1)
+#
+#         # Geschwindigkeit lesen
+#         speed = wheelchair.get_wheelchair_speed()
+#         print(f"Aktuelle Geschwindigkeit (trueSpeed): {speed:.2f}")
+#
+#     except ConnectionError as e:
+#          print(f"Verbindung zum Rollstuhl konnte nicht hergestellt werden: {e}")
+#     except RLinkError as e:
+#          print(f"Laufzeitfehler bei RLink-Kommunikation: {e}")
+#     except Exception as e:
+#         print(f"Ein unerwarteter Fehler ist aufgetreten: {e}")
+#         import traceback
+#         traceback.print_exc()
+#     finally:
+#         if wheelchair:
+#             wheelchair.shutdown()
+#
+#     print("\nBeispiel beendet.")
