@@ -23,7 +23,7 @@ magic_leap_ip = None  # IP-Adresse der Magic Leap 2
 last_heartbeat = 0    # Zeitpunkt des letzten empfangenen Heartbeats
 publisher_socket = None # Publisher Socket (zum Senden von Daten)
 subscriber_socket = None # Subscriber Socket (zum Empfangen von Heartbeats und READY)
-wheelchair = WheelchairControl()
+wheelchair = WheelchairControlReal()
 
 def is_little_endian():
     """Überprüft, ob das System Little-Endian ist."""
