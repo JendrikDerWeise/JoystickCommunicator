@@ -291,10 +291,10 @@ def run_server():
                         y = from_network_order(message[4:8], 'f')
                         direction = (x, y)
                         wheelchair.set_direction(direction)
-                    elif topic == b"gear":
-                        received_value = from_network_order(message, '?')
-                        actual_gear = wheelchair.set_gear(received_value)
-                        publisher_socket.send_multipart([b"gear", to_network_order(actual_gear, 'i')])
+                    #elif topic == b"gear":
+                        #received_value = from_network_order(message, '?')
+                        #actual_gear = wheelchair.set_gear(received_value)
+                        #publisher_socket.send_multipart([b"gear", to_network_order(actual_gear, 'i')])
                     elif topic == b"lights":
                         received_value = from_network_order(message, '?')
                         wheelchair.set_lights()
