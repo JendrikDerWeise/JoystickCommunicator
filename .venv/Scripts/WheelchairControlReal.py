@@ -208,12 +208,13 @@ class WheelchairControlReal:
         x = x+100
         y = y+100
         x = int(x); y = int(y) # Sicherstellen, dass es ints sind
-        deadzone_threshold_scaled = 25  # Beispiel: Werte unter +/- 15 ignorieren (anpassen!)
+        deadzone_threshold_scaled = 15  # Beispiel: Werte unter +/- 15 ignorieren (anpassen!)
         if abs(x) < deadzone_threshold_scaled:
             x = 0
         if abs(y) < deadzone_threshold_scaled:
             y = 0
 
+        print(str(x) + " " + str(y))
         if self._tilt_mode_active:
             # --- KANTELUNGSMODUS ---
             # Sicherstellen, dass Fahren gestoppt ist (nur bei Änderung senden)
