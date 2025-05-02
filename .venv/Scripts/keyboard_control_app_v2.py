@@ -216,7 +216,7 @@ class KeyboardController:
                     self.rlink.set_horn(self.horn_on)
                     self._last_sent_horn = self.horn_on
                 if self.lights_on != self._last_sent_light:
-                    self.rlink.set_light(RLinkLight.DIP, True)
+                    self.rlink.set_light(RLinkLight.DIP, self.lights_on)
                     self._last_sent_light = self.lights_on
 
                 # 5. Achsensteuerung (Sitzkantelung)
