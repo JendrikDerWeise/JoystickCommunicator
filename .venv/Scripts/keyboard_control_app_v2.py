@@ -246,7 +246,7 @@ class KeyboardController:
 
                 # 7. Debug/Status-Ausgabe
                 status_line = f"\rKeys: [{','.join(sorted(list(current_pressed))):<10s}] | Target: ({target_x:+4d},{target_y:+4d}) | Tilt: {target_axis_dir.name if target_axis_dir != RLinkAxisDir.NONE else 'NONE': <4s} | {speed_info_str}      "
-                print(status_line, end="", flush=True)
+                #print(status_line, end="", flush=True)
 
                 # 8. Schlafen
                 time.sleep(LOOP_CONTROL_SLEEP)
