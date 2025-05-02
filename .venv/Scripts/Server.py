@@ -277,7 +277,7 @@ def run_server():
                 #f = str(float_value)
                 #f = str(f).replace(".", ",")
                 publisher_socket.send_multipart([b"topic_float", float_value])
-                publisher_socket.send_multipart([b"topic_string", string_value.encode()])
+                #publisher_socket.send_multipart([b"topic_string", string_value.encode()])
 
                 # Empfange Nachrichten (mit Timeout)
                 if subscriber_socket.poll(1000):  # 1 Sekunde Timeout

@@ -11,7 +11,7 @@ try:
     # Stelle sicher, dass du RLink aus der korrigierten full_rlink_wrapper.py importierst
     from full_rlink_wrapper import (
         RLink, RLinkError, # Hauptklasse importieren
-        RLinkLight, RLinkAxisId, RLinkAxisDir # Benötigte Enums
+        RLinkLight, RLinkAxisId, RLinkAxisDir, RLinkButton # Benötigte Enums
     )
 except ImportError as e:
     print(f"Fehler: Konnte 'full_rlink_wrapper.py' nicht finden: {e}", file=sys.stderr)
@@ -47,6 +47,7 @@ KEY_MAP = {
     ecodes.KEY_T: 't', # Tilt Up
     ecodes.KEY_G: 'g', # Tilt Down
     ecodes.KEY_Q: 'q',
+    ecodes.KEY_P: 'p',
     ecodes.KEY_ESC: 'esc',
 }
 
@@ -68,6 +69,7 @@ class KeyboardController:
         self._last_sent_horn = self.horn_on
         self._last_sent_light = self.lights_on
         self._last_sent_axis_dir = {} # Zustand für Achsen merken
+        self.button_to_press = RLinkButton.YELLOW_RING
 
     def _find_keyboard_device(self):
         """Sucht automatisch nach einem Tastaturgerät."""
@@ -181,6 +183,7 @@ class KeyboardController:
         print(" - G:     Sitzkantelung RUNTER")
         print(" - H:     Hupe AN/AUS")
         print(" - L:     Licht (DIP) AN/AUS")
+        print(" - P:     Profil umschalten")
         print(" - ESC/Q: Beenden")
         print(f"--- ACHTUNG: Sitzkantelung ist auf AXIS ID {SEAT_TILT_AXIS_ID.value} gemappt (ggf. ändern!) ---")
         print("\nWarte auf Eingaben...")
@@ -226,6 +229,11 @@ class KeyboardController:
                     self.rlink.set_axis(SEAT_TILT_AXIS_ID, target_axis_dir)
                     self._last_sent_axis_dir[SEAT_TILT_AXIS_ID] = target_axis_dir
 
+                if 'p' in current_pressed:
+                    self.rlink.set_button(button_to_press, True)
+                    time.sleep(0.1)  # Kurze Verzögerung für einen Tastendruck
+                    self.rlink.set_button(button_to_press, False)
+
                 # 6. Geschwindigkeit abrufen
                 try:
                     speed_setting, true_speed, limit_flag = self.rlink.get_speed()
@@ -267,6 +275,7 @@ if __name__ == "__main__":
     print(" - G:     Sitzkantelung RUNTER")
     print(" - H:     Hupe AN/AUS")
     print(" - L:     Licht (DIP) AN/AUS")
+    print(" - P:     Profil umschalten")
     print(" - ESC/Q: Beenden")
     print(f"--- ACHTUNG: Sitzkantelung ist auf AXIS ID {SEAT_TILT_AXIS_ID.value} gemappt (ggf. ändern!) ---")
     print("-" * 60)

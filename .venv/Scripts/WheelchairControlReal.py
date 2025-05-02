@@ -167,7 +167,7 @@ class WheelchairControlReal:
         self._light_on = not self._light_on
         print(f"Schalte Abblendlicht {'AN' if self._light_on else 'AUS'}")
         if self.rlink:
-            self.rlink.set_light(RLinkLight.DIP, self._light_on)
+            self.rlink.set_light(RLinkLight.DIP, True)
 
     def get_lights(self) -> bool:
         """Gibt den aktuellen Zustand des Abblendlichts zurück."""
@@ -214,7 +214,6 @@ class WheelchairControlReal:
         if abs(y) < deadzone_threshold_scaled:
             y = 0
 
-        print(str(x) + " " + str(y))
         if self._tilt_mode_active:
             # --- KANTELUNGSMODUS ---
             # Sicherstellen, dass Fahren gestoppt ist (nur bei Änderung senden)
@@ -252,7 +251,7 @@ class WheelchairControlReal:
 
 
     def set_gear(self, gearUp: bool) -> int:
-        """Simuliert das Ändern des Ganges und gibt ihn auf der Konsole aus."""
+        """Simuliert das Ändern des Ganges und gibt ihn auf der Konsole aus.
         if gearUp:
             if self._actual_gear < 5:
                 self._actual_gear += 1
@@ -260,17 +259,16 @@ class WheelchairControlReal:
         else:
             if self._actual_gear > 1:
                 self._actual_gear -= 1
-                print(f"DEBUG: Gang runtergeschaltet auf {self._actual_gear}")
+                print(f"DEBUG: Gang runtergeschaltet auf {self._actual_gear}")"""
 
         # TODO: Hier könnte die Simulation eines Tastendrucks erfolgen,
         #       wenn die Taste bekannt ist. Z.B.:
-        # if self.rlink:
-        #     print(f"DEBUG: Sende Button-Press für Gangwechsel (Taste: YR?)")
-        #     # Annahme: Kurzes Drücken von YR schaltet Gang
-        #     button_to_press = RLinkButton.YELLOW_RING # Beispiel!
-        #     self.rlink.set_button(button_to_press, True)
-        #     time.sleep(0.1) # Kurze Verzögerung für einen Tastendruck
-        #     self.rlink.set_button(button_to_press, False)
+        if self.rlink:
+            print(f"DEBUG: Sende Button-Press für Gangwechsel (Taste: YR?)")
+            button_to_press = RLinkButton.YELLOW_RING # Beispiel!
+            self.rlink.set_button(button_to_press, True)
+            time.sleep(0.1) # Kurze Verzögerung für einen Tastendruck
+            self.rlink.set_button(button_to_press, False)
         # else:
         #      print("DEBUG: RLink nicht verbunden, Gangwechsel nur simuliert.")
 
