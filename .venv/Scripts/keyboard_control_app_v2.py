@@ -230,9 +230,9 @@ class KeyboardController:
                     self._last_sent_axis_dir[SEAT_TILT_AXIS_ID] = target_axis_dir
 
                 if 'p' in current_pressed:
-                    self.rlink.set_button(RLinkButton.YELLOW_RING, True)
+                    self.rlink.set_button(RLinkButton.YELLOW_TIP, True)
                     time.sleep(0.1)  # Kurze Verzögerung für einen Tastendruck
-                    self.rlink.set_button(RLinkButton.YELLOW_RING, False)
+                    self.rlink.set_button(RLinkButton.YELLOW_TIP, False)
 
                 # 6. Geschwindigkeit abrufen
                 try:
