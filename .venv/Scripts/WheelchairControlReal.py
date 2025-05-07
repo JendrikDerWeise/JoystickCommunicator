@@ -310,6 +310,13 @@ class WheelchairControlReal:
         final_x = int(round(max(-127.0, min(127.0, self._current_sent_x))))
         final_y = int(round(max(-127.0, min(127.0, self._current_sent_y))))
 
+        # --- DEBUG AUSGABE ---
+        print(f"\rRAMP: Target=({self._target_x_for_ramping:.1f},{self._target_y_for_ramping:.1f}) "
+              f"CurrentSent=({self._current_sent_x:.1f},{self._current_sent_y:.1f}) "
+              f"FinalSent=({final_x},{final_y})   ", end="", flush=True)
+        print()
+        # --- ENDE DEBUG ---
+
         self.rlink.set_xy(final_x, final_y)
         # _last_sent_x/y werden nicht mehr für Moduswechsel gebraucht,
         # da _target_x/y_for_ramping im Kantelungsmodus auf 0 gesetzt werden
