@@ -208,7 +208,7 @@ class WheelchairControlReal:
             except Exception as e: print(f"Warnung: Fehler Shutdown-Stop: {e}", file=sys.stderr)
             self.rlink.destruct()
             self.rlink = None
-        print("WheelchairControlReal heruntergefahren.")
+        print("WheelchairControlReal  heruntergefahren.")
 
     def on_kantelung(self, on: bool):
         if on == self._tilt_mode_active: return
