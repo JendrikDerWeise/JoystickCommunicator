@@ -64,6 +64,9 @@
 </head>
 <body>
     <div class="server-controls">
+        <form action="{{ url_for('git_pull_route') }}" method="POST" style="display: inline-block;">
+        <button type="submit" style="background-color: #17a2b8; color: white; padding: 6px 12px; font-size: 0.85em; border: none; border-radius: 4px; cursor: pointer;">Update App (git pull)</button>
+        </form>
         <form action="{{ url_for('zmq_server_start') }}" method="POST">
             <button type="submit" class="start-button">ZMQ Server START</button>
         </form>

@@ -8,6 +8,7 @@ import sys # Für sys.exit falls nötig (optional)
 
 PATH_TO_START_ZMQ_SCRIPT = "/home/jendrik/projekte/scripts/start_zmq.sh"
 PATH_TO_STOP_ZMQ_SCRIPT = "/home/jendrik/projekte/scripts/stop_zmq.sh"
+GIT_PULL_DIRECTORY = "/home/jendrik/projekte/JoystickCommunicator"
 
 # --- Konfiguration für Rollstuhl-Parameter ---
 CONFIG_FILE = "wheelchair_config.json" # Name der Speicherdatei (im selben Verzeichnis wie server.py)
@@ -331,8 +332,63 @@ def zmq_server_stop():
     flash(message, category)
     return redirect(url_for('index'))
 
-# --- ENDE NEUE Routen ---
+@app.route('/control/git_pull', methods=['POST'])
+def git_pull_route():
+    """Führt 'git pull' im angegebenen Verzeichnis aus."""
+    abs_path = os.path.abspath(GIT_PULL_DIRECTORY)
+    print(f"Versuche 'git pull' in {abs_path} via Web-Button.")
+    message = f"Git pull für {abs_path} wird versucht..."
+    category = "info"
 
+    # Prüfe, ob das Verzeichnis existiert
+    if not os.path.isdir(abs_path):
+        message = f"Fehler: Verzeichnis {abs_path} nicht gefunden!"
+        category = "error"
+        print(message, file=sys.stderr)
+        flash(message, category)
+        return redirect(url_for('index'))
+
+    git_command = ['git', 'pull']
+    try:
+        # Führe 'git pull' direkt aus, im richtigen Verzeichnis (cwd)
+        # Läuft als der Benutzer, der den Flask-Server ausführt!
+        result = subprocess.run(
+            git_command,
+            cwd=abs_path,                   # WICHTIG: Arbeitsverzeichnis setzen!
+            capture_output=True,
+            text=True,
+            check=True,                     # Löst CalledProcessError aus, wenn git pull fehlschlägt
+            timeout=45                      # Timeout für den Pull-Vorgang
+        )
+        message = f"'git pull' in {abs_path} erfolgreich!"
+        category = "success"
+        print(f"Git pull erfolgreich. Ausgabe:\n{result.stdout}")
+        # Zeige die Git-Ausgabe in der Flash-Nachricht an (kann lang sein!)
+        flash(message + f"\n--- Git Output ---\n{result.stdout}\n--- End Output ---", category)
+
+    except FileNotFoundError:
+        message = "Fehler: 'git' Kommando nicht gefunden. Ist git installiert und im PATH?"
+        category = "error"
+        print(message, file=sys.stderr)
+        flash(message, category)
+    except subprocess.CalledProcessError as e:
+        message = f"Fehler bei 'git pull' in {abs_path} (Exit Code {e.returncode})."
+        category = "error"
+        error_details = e.stderr.strip() if e.stderr else e.stdout.strip() # Manchmal ist Fehler in stdout
+        print(f"{message}\nFehlermeldung von Git:\n{error_details}", file=sys.stderr)
+        flash(message + f"\n--- Git Error ---\n{error_details}\n--- End Error ---", category)
+    except subprocess.TimeoutExpired:
+        message = f"Timeout beim Ausführen von 'git pull' in {abs_path}."
+        category = "error"
+        print(message, file=sys.stderr)
+        flash(message, category)
+    except Exception as e:
+        message = f"Unerwarteter Fehler beim 'git pull': {str(e)}"
+        category = "error"
+        print(message, file=sys.stderr)
+        flash(message, category)
+
+    return redirect(url_for('index'))
 
 # --- Server Start ---
 if __name__ == "__main__":
