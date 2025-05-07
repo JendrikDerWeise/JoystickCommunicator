@@ -96,7 +96,7 @@ class WheelchairControlReal:
 
     def send_rlink_heartbeat(self):
         """Sendet einen Heartbeat an RLink, falls verbunden."""
-        if self.rlink and self.rlink._opened:
+        if self.rlink:
             try:
                 self.rlink.heartbeat()
                 # print("RLink Heartbeat sent synchronously") # Optional für Debugging
