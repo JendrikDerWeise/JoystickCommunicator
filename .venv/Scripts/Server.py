@@ -273,7 +273,7 @@ def run_server():
                     last_heartbeat_send = time.time()  # Aktualisiere den Zeitpunkt des Sendens
 
                 # --- Heartbeat ZUM Rollstuhl(RLink) ---
-                if time.time() - last_rlink_heartbeat_send > RNOTIFIX_HEARTBEAT_INTERVAL:
+                if time.time() - last_rlink_heartbeat_send > HEARTBEAT_INTERVAL:
                     if wheelchair.send_rlink_heartbeat():  # Rufe die neue Methode auf
                         last_rlink_heartbeat_send = time.time()
                     else:
