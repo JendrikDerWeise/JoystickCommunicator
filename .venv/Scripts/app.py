@@ -6,6 +6,9 @@ import os
 import json # NEU für Konfiguration
 import sys # Für sys.exit falls nötig (optional)
 
+PATH_TO_START_ZMQ_SCRIPT = "/home/jendrik/projekte/scripts/start_zmq.sh"
+PATH_TO_STOP_ZMQ_SCRIPT = "/home/jendrik/projekte/scripts/stop_zmq.sh"
+
 # --- Konfiguration für Rollstuhl-Parameter ---
 CONFIG_FILE = "wheelchair_config.json" # Name der Speicherdatei (im selben Verzeichnis wie server.py)
 DEFAULT_CONFIG = {
@@ -263,6 +266,70 @@ def save_config_route():
 
     # Leite immer zurück zur Konfigurationsseite
     return redirect(url_for('show_config'))
+
+@app.route('/control_zmq_server/start', methods=['POST'])
+def zmq_server_start():
+    app.logger.info("Versuche ZMQ-Server-Start via Web-Button.") # Falls app.logger konfiguriert ist
+    message = "Startbefehl für ZMQ-Server gesendet."
+    category = "success"
+    try:
+        # Führe das Start-Skript aus
+        result = subprocess.run(
+            ['sudo', PATH_TO_START_ZMQ_SCRIPT],
+            capture_output=True, text=True, check=True, timeout=10
+        )
+        message += f" Ausgabe: {result.stdout.strip()}"
+    except FileNotFoundError:
+        message = f"Fehler: Start-Skript für ZMQ nicht gefunden unter {PATH_TO_START_ZMQ_SCRIPT}"
+        category = "error"
+        if app.logger: app.logger.error(message)
+    except subprocess.CalledProcessError as e:
+        message = f"Fehler beim Starten des ZMQ-Servers: {e.stderr.strip()}"
+        category = "error"
+        if app.logger: app.logger.error(f"CalledProcessError ZMQ Start: {e.stderr.strip()}")
+    except subprocess.TimeoutExpired:
+        message = "Timeout beim Starten des ZMQ-Servers."
+        category = "error"
+        if app.logger: app.logger.error(message)
+    except Exception as e:
+        message = f"Unerwarteter Fehler beim ZMQ-Start: {str(e)}"
+        category = "error"
+        if app.logger: app.logger.error(message)
+
+    flash(message, category)
+    return redirect(url_for('index')) # Leite zurück zur Hauptseite
+
+@app.route('/control_zmq_server/stop', methods=['POST'])
+def zmq_server_stop():
+    app.logger.info("Versuche ZMQ-Server-Stopp via Web-Button.") # Falls app.logger konfiguriert ist
+    message = "Stoppbefehl für ZMQ-Server gesendet."
+    category = "success"
+    try:
+        # Führe das Stopp-Skript aus
+        result = subprocess.run(
+            ['sudo', PATH_TO_STOP_ZMQ_SCRIPT],
+            capture_output=True, text=True, check=True, timeout=10
+        )
+        message += f" Ausgabe: {result.stdout.strip()}"
+    except FileNotFoundError:
+        message = f"Fehler: Stopp-Skript für ZMQ nicht gefunden unter {PATH_TO_STOP_ZMQ_SCRIPT}"
+        category = "error"
+        if app.logger: app.logger.error(message)
+    except subprocess.CalledProcessError as e:
+        message = f"Fehler beim Stoppen des ZMQ-Servers: {e.stderr.strip()}"
+        category = "error"
+        if app.logger: app.logger.error(f"CalledProcessError ZMQ Stopp: {e.stderr.strip()}")
+    except subprocess.TimeoutExpired:
+        message = "Timeout beim Stoppen des ZMQ-Servers."
+        category = "error"
+        if app.logger: app.logger.error(message)
+    except Exception as e:
+        message = f"Unerwarteter Fehler beim ZMQ-Stopp: {str(e)}"
+        category = "error"
+        if app.logger: app.logger.error(message)
+
+    flash(message, category)
+    return redirect(url_for('index'))
 
 # --- ENDE NEUE Routen ---
 
