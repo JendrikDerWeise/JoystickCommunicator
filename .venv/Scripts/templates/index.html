@@ -10,6 +10,27 @@
         #message { margin-top: 10px; font-weight: bold; }
         .error {color: red;}
         .success {color: green;}
+
+        /* NEU: Stil für den Konfigurations-Button */
+        .config-button-link {
+            position: fixed; /* Positioniert relativ zum Browserfenster */
+            bottom: 20px;    /* Abstand vom unteren Rand */
+            right: 20px;     /* Abstand vom rechten Rand */
+            padding: 12px 18px;
+            background-color: #007bff; /* Blauer Button als Beispiel */
+            color: white;
+            text-decoration: none; /* Entfernt Unterstreichung vom Link */
+            border: none;
+            border-radius: 5px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2); /* Kleiner Schatten */
+            cursor: pointer;
+            font-size: 0.9em;
+            z-index: 1000; /* Stellt sicher, dass er über anderem Inhalt liegt */
+        }
+        .config-button-link:hover {
+            background-color: #0056b3; /* Dunkleres Blau beim Hovern */
+        }
+        /* ENDE NEU */
     </style>
 </head>
 <body>
@@ -57,13 +78,14 @@
 
     <div id="message"></div>
 
+    <a href="{{ url_for('show_config') }}" class="config-button-link">Rollstuhl-Parameter</a>
     <script>
         function saveData() {
             const form = document.getElementById('myForm');
             const formData = new FormData(form);
             const messageDiv = document.getElementById('message');
 
-            fetch('/save', {
+            fetch('/save', { // Dieser Endpunkt bleibt für die ML2 Daten
                 method: 'POST',
                 body: formData
             })
