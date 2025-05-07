@@ -82,8 +82,8 @@ class WheelchairControlReal:
             self._current_sent_y = 0.0
 
             self._quit_heartbeat.clear()
-            self._heartbeat_thread = threading.Thread(target=self._heartbeat_thread_func, daemon=True)
-            self._heartbeat_thread.start()
+            #self._heartbeat_thread = threading.Thread(target=self._heartbeat_thread_func, daemon=True)
+            #self._heartbeat_thread.start()
             print("WheelchairControlReal Initialisierung erfolgreich.")
             print(f"Geladene Konfiguration: Gänge={self._gear_factors}, Beschl.={self._acceleration_step}")
 
@@ -93,6 +93,21 @@ class WheelchairControlReal:
         except Exception as e:
             print(f"FATAL: Unerwarteter Fehler bei Initialisierung: {e}", file=sys.stderr)
             raise ConnectionError(f"Unexpected error during RLink init: {e}") from e
+
+    def send_rlink_heartbeat(self):
+        """Sendet einen Heartbeat an RLink, falls verbunden."""
+        if self.rlink and self.rlink._opened:
+            try:
+                self.rlink.heartbeat()
+                # print("RLink Heartbeat sent synchronously") # Optional für Debugging
+                return True
+            except RLinkError as e:
+                print(f"Fehler beim synchronen Senden des RLink Heartbeats: {e}", file=sys.stderr)
+                return False
+            except Exception as e:
+                print(f"Unerwarteter Fehler beim synchronen Senden des RLink Heartbeats: {e}", file=sys.stderr)
+                return False
+        return False
 
     def _load_config(self):
         """Lädt Konfiguration aus JSON oder verwendet Defaults."""

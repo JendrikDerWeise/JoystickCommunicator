@@ -262,6 +262,8 @@ def run_server():
         last_heartbeat = time.time()
         float_value = 0
         last_heartbeat_send = 0  # Zeitpunkt des letzten Sendens.
+        last_rlink_heartbeat_send = time.time()  # NEU: Für Heartbeat ZUM Rollstuhl
+        HEARTBEAT_INTERVAL = 0.2
 
         while True:  # Hauptkommunikationsschleife
             try:
@@ -269,6 +271,13 @@ def run_server():
                 if time.time() - last_heartbeat_send > HEARTBEAT_INTERVAL:
                     publisher_socket.send_multipart([b"heartbeat", b""])
                     last_heartbeat_send = time.time()  # Aktualisiere den Zeitpunkt des Sendens
+
+                # --- Heartbeat ZUM Rollstuhl(RLink) ---
+                if time.time() - last_rlink_heartbeat_send > RNOTIFIX_HEARTBEAT_INTERVAL:
+                    if wheelchair.send_rlink_heartbeat():  # Rufe die neue Methode auf
+                        last_rlink_heartbeat_send = time.time()
+                    else:
+                        print("Konnte RLink Heartbeat nicht senden, möglicherweise Verbindungsproblem.")
 
                 # Sende Testnachrichten (Beispiele)
                 speed = wheelchair.get_wheelchair_speed()
