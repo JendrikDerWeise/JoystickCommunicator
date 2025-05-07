@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rollstuhl Konfiguration</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background-color: #f4f4f4; }
+        .container { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
+        h1 { text-align: center; color: #333; }
+        label { display: block; margin-top: 15px; margin-bottom: 5px; font-weight: bold; color: #555;}
+        input[type="number"] { width: 95%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; }
+        input[type="submit"] { display: block; width: 100%; padding: 10px 15px; margin-top: 20px; background-color: #5cb85c; color: white; border: none; border-radius: 4px; font-size: 1.1em; cursor: pointer; }
+        input[type="submit"]:hover { background-color: #4cae4c; }
+        .flash { padding: 10px; margin-bottom: 15px; border-radius: 4px; text-align: center; }
+        .flash.success { background-color: #dff0d8; color: #3c763d; border: 1px solid #d6e9c6; }
+        .flash.error { background-color: #f2dede; color: #a94442; border: 1px solid #ebccd1; }
+        .flash.warning { background-color: #fcf8e3; color: #8a6d3b; border: 1px solid #faebcc; }
+        .gear-group { margin-bottom: 10px; }
+        .gear-group label { display: inline-block; width: 80px; }
+        .help-text { font-size: 0.9em; color: #777; margin-top: 5px;}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Rollstuhl Konfiguration</h1>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <form action="{{ url_for('save') }}" method="post">
+            <h2>Gänge (Max. Geschwindigkeitsfaktor)</h2>
+            <p class="help-text">Stelle den Faktor ein (0.0 bis 1.0), mit dem die Joystick-Eingabe für jeden Gang multipliziert wird (z.B. 0.2 = 20% max. Geschwindigkeit).</p>
+            {% for i in range(1, 6) %}
+            <div class="gear-group">
+                <label for="gear{{ i }}">Gang {{ i }}:</label>
+                <input type="number" id="gear{{ i }}" name="gear{{ i }}"
+                       value="{{ config.gear_factors[i|string] | default(0.2 * i, true) }}"
+                       min="0.0" max="1.0" step="0.05" required>
+            </div>
+            {% endfor %}
+
+            <h2>Beschleunigung / Rampe</h2>
+             <p class="help-text">Maximaler Änderungswert pro Steuerzyklus (ca. {{ (1 / config.get('LOOP_CONTROL_SLEEP', 0.04)) | round }} Mal pro Sekunde). Größere Werte = schnellere Beschleunigung/Verzögerung. Kleinere Werte = sanfter. Wert muss > 0 sein.</p>
+            <label for="acceleration">Beschleunigungsschritt:</label>
+            <input type="number" id="acceleration" name="acceleration"
+                   value="{{ config.acceleration_step | default(10, true) }}"
+                   min="0.1" step="0.1" required> <input type="submit" value="Einstellungen Speichern">
+        </form>
+         <p class="help-text" style="margin-top: 20px; text-align: center;">Hinweis: Das Rollstuhl-Steuerungsskript muss neu gestartet werden, damit die Änderungen wirksam werden.</p>
+    </div>
+</body>
+</html>
