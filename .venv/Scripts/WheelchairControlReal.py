@@ -35,6 +35,8 @@ DEFAULT_CONFIG = {
         "5": 1.0  # 100%
     },
     "acceleration_step": 10, # Maximale Änderung des Sendewerts (-127 bis 127) pro Aufruf
+    "pi_side_deadzone": 0.1, # Deadzone auf dem Pi
+    "min_rlink_command": 10
 }
 
 class WheelchairControlReal:
@@ -120,6 +122,25 @@ class WheelchairControlReal:
                     self._acceleration_step = float(DEFAULT_CONFIG["acceleration_step"])
                     print(f"Warnung: Ungültiger acceleration_step in Config. Verwende Default.")
 
+                    # Lade und validiere pi_side_deadzone
+                    try:
+                        loaded_dz = float(config.get("pi_side_deadzone", DEFAULT_CONFIG["pi_side_deadzone"]))
+                        self._pi_side_deadzone = max(0.0, min(0.9, loaded_dz))  # Muss zwischen 0 und <1 sein
+                    except (ValueError, TypeError):
+                        self._pi_side_deadzone = float(DEFAULT_CONFIG["pi_side_deadzone"])
+                        print(f"Warnung: Ungültiger pi_side_deadzone in Config. Verwende Default.")
+
+                    # Lade und validiere min_rlink_command
+                    try:
+                        loaded_min_cmd = int(config.get("min_rlink_command", DEFAULT_CONFIG["min_rlink_command"]))
+                        # Mindestens 1 (da 0 Stillstand ist), maximal vielleicht 40? Begrenzen.
+                        self._min_rlink_command = max(1, min(40, loaded_min_cmd))
+                    except (ValueError, TypeError):
+                        self._min_rlink_command = int(DEFAULT_CONFIG["min_rlink_command"])
+                        print(f"Warnung: Ungültiger min_rlink_command in Config. Verwende Default.")
+
+                    print(f"Konfiguration geladen: Accel={self._acceleration_step}, PiDeadzone={self._pi_side_deadzone}, MinCmd={self._min_rlink_command}")
+
                 print(f"Konfiguration aus {self.config_filepath} geladen.")
                 return
             except (json.JSONDecodeError, IOError) as e:
@@ -137,7 +158,8 @@ class WheelchairControlReal:
         config_data = {
             "gear_factors": self._gear_factors,
             "acceleration_step": self._acceleration_step,
-            # joystick_max_value wird nicht mehr benötigt, wenn Input -1 bis 1 ist
+            "pi_side_deadzone": self._pi_side_deadzone,
+            "min_rlink_command": self._min_rlink_command
         }
         try:
             with open(self.config_filepath, 'w') as f:
@@ -227,66 +249,125 @@ class WheelchairControlReal:
         else: return 0.0
 
     def set_direction(self, direction: tuple[float, float]):
-        """Setzt Fahrtrichtung ODER Kantelung, mit Software-Gängen und Beschleunigungsrampe.
-           Erwartet normalisierte Joystick-Werte (-1.0 bis 1.0).
         """
-        if not self.rlink: return
+        Setzt Fahrtrichtung ODER Kantelung. Im Fahrmodus wird der Input-Bereich [-1, 1]
+        (nach der Deadzone) auf den Output-Bereich [min_rlink_command/127, gear_factor] abgebildet,
+        um die physikalische Ansprechschwelle zu überwinden, ohne die Maximalgeschwindigkeit
+        des Ganges zu verändern. Wendet anschließend eine Beschleunigungsrampe an.
+        Erwartet normalisierte Joystick-Werte (-1.0 bis 1.0) von der ML2.
+        """
+        if not self.rlink: return # Abbruch, wenn keine RLink-Verbindung
 
+        # Eingabevalidierung
         if not isinstance(direction, tuple) or len(direction) != 2:
             print(f"Warnung: Ungültiges Format für set_direction: {direction}", file=sys.stderr)
-            if self._tilt_mode_active:
-                 self.rlink.set_axis(SEAT_TILT_AXIS_ID, RLinkAxisDir.NONE)
-                 self._current_axis_dir[SEAT_TILT_AXIS_ID] = RLinkAxisDir.NONE
-            else:
-                 self._target_x_for_ramping = 0.0 # Ziel für Rampe setzen
-                 self._target_y_for_ramping = 0.0
-                 # Direkter Stopp über Rampe wird im nächsten Schritt behandelt
-            return
-
-        raw_x, raw_y = direction # Sollten -1.0 bis 1.0 sein
-
-        # Deadzone
-        deadzone = 0.1 # Beispiel
-        if abs(raw_x) < deadzone: raw_x = 0.0
-        if abs(raw_y) < deadzone: raw_y = 0.0
-
-        if self._tilt_mode_active:
-            # --- KANTELUNGSMODUS ---
-            # Fahrmodus stoppen (Rampe auf 0 setzen, wird unten angewendet)
+            # Setze Ziele auf 0, um sicher anzuhalten
             self._target_x_for_ramping = 0.0
             self._target_y_for_ramping = 0.0
-            # Wende Rampe für Fahren an, um sanft zu stoppen
-            self._apply_drive_ramp_and_send()
+            # Wende Rampe an, um sanft zu stoppen (falls noch nicht geschehen)
+            if not self._tilt_mode_active: # Nur wenn im Fahrmodus
+                 try:
+                     self._apply_drive_ramp_and_send()
+                 except Exception as e: print(f"Warnung: Fehler beim Stoppen (ramp) bei ungültigem Input: {e}", file=sys.stderr)
+            # Kantelung auch stoppen
+            last_tilt_dir = self._current_axis_dir.get(SEAT_TILT_AXIS_ID, RLinkAxisDir.NONE)
+            if last_tilt_dir != RLinkAxisDir.NONE:
+                try:
+                    self.rlink.set_axis(SEAT_TILT_AXIS_ID, RLinkAxisDir.NONE)
+                    self._current_axis_dir[SEAT_TILT_AXIS_ID] = RLinkAxisDir.NONE
+                except Exception as e: print(f"Warnung: Fehler beim Stoppen der Kantelung bei ungültigem Input: {e}", file=sys.stderr)
+            return
+
+        raw_x, raw_y = direction # -1.0 bis 1.0 von ML2
+
+        # --- Logik für Kantelungsmodus ---
+        if self._tilt_mode_active:
+            # Fahrmodus stoppen (Ziel auf 0 setzen, Rampe anwenden)
+            self._target_x_for_ramping = 0.0
+            self._target_y_for_ramping = 0.0
+            try:
+                 self._apply_drive_ramp_and_send()
+            except Exception as e: print(f"Warnung: Fehler beim Stoppen (ramp) bei Wechsel zu Kantelung: {e}", file=sys.stderr)
 
 
             # Y-Achse für Kantelung interpretieren
             target_axis_dir = RLinkAxisDir.NONE
-            if raw_y > TILT_THRESHOLD_NORMALIZED: target_axis_dir = RLinkAxisDir.UP
-            elif raw_y < -TILT_THRESHOLD_NORMALIZED: target_axis_dir = RLinkAxisDir.DOWN
+            # Deadzone für Kantelung (kann anders sein als Fahr-Deadzone)
+            tilt_deadzone = 0.1 # Beispiel
+            if raw_y > tilt_deadzone and abs(raw_y) > TILT_THRESHOLD_NORMALIZED: target_axis_dir = RLinkAxisDir.UP
+            elif raw_y < -tilt_deadzone and abs(raw_y) > TILT_THRESHOLD_NORMALIZED: target_axis_dir = RLinkAxisDir.DOWN
 
             last_dir = self._current_axis_dir.get(SEAT_TILT_AXIS_ID, RLinkAxisDir.NONE)
             if target_axis_dir != last_dir:
-                self.rlink.set_axis(SEAT_TILT_AXIS_ID, target_axis_dir)
-                self._current_axis_dir[SEAT_TILT_AXIS_ID] = target_axis_dir
-        else:
-            # --- FAHRMODUS ---
-            # Kantelungsmodus stoppen
-            last_dir = self._current_axis_dir.get(SEAT_TILT_AXIS_ID, RLinkAxisDir.NONE)
-            if last_dir != RLinkAxisDir.NONE:
+                try:
+                    self.rlink.set_axis(SEAT_TILT_AXIS_ID, target_axis_dir)
+                    self._current_axis_dir[SEAT_TILT_AXIS_ID] = target_axis_dir
+                    # Debug.Log($"Set Tilt Axis to: {target_axis_dir}");
+                except Exception as e: print(f"Fehler bei set_axis: {e}", file=sys.stderr)
+            return # Ende der Methode für Kantelungsmodus
+
+        # --- Logik für Fahrmodus ---
+        # Kantelungsmodus stoppen (falls noch aktiv)
+        last_tilt_dir = self._current_axis_dir.get(SEAT_TILT_AXIS_ID, RLinkAxisDir.NONE)
+        if last_tilt_dir != RLinkAxisDir.NONE:
+             try:
                  self.rlink.set_axis(SEAT_TILT_AXIS_ID, RLinkAxisDir.NONE)
                  self._current_axis_dir[SEAT_TILT_AXIS_ID] = RLinkAxisDir.NONE
+             except Exception as e: print(f"Warnung: Fehler beim Stoppen der Kantelung bei Wechsel zu Fahrmodus: {e}", file=sys.stderr)
 
-            # 1. Gangfaktor anwenden
-            gear_str = str(self._current_gear)
-            speed_factor = self._gear_factors.get(gear_str, 1.0) # Default auf 100% wenn Gang nicht in Config
+        # --- Input Remapping Logik ---
+        gear_str = str(self._current_gear)
+        # Maximaler Output-Faktor für diesen Gang (aus Config, 0-1)
+        max_speed_factor = self._gear_factors.get(gear_str, 1.0)
+        # Minimaler Output-Faktor basierend auf der RLink-Schwelle (aus Config, 0-1)
+        min_output_normalized = float(self._min_rlink_command) / 127.0
 
-            # Zielgeschwindigkeiten basierend auf Joystick (-1 bis 1) und Gang
-            # Ergebnis ist Zielwert für Rampe im Bereich -127 bis 127
-            self._target_x_for_ramping = raw_x * speed_factor * 127.0
-            self._target_y_for_ramping = raw_y * speed_factor * 127.0
+        # Sicherstellen, dass min Output nicht größer als max Output ist
+        # Wenn doch, wird der Output konstant sein (falls > deadzone)
+        effective_min_output = min_output_normalized
+        if effective_min_output >= max_speed_factor:
+            effective_min_output = max_speed_factor
 
-            # Wende Rampe an und sende Befehl
+        # Berechne Ziel für X mit Remapping
+        target_x = 0.0
+        if abs(raw_x) >= self._pi_side_deadzone: # Input außerhalb der Pi-Deadzone?
+            # Berechne, wie weit der Input im *aktiven* Bereich (nach Deadzone) ist (0 bis 1)
+            input_range = 1.0 - self._pi_side_deadzone
+            # Vermeide Division durch Null, falls Deadzone >= 1 (sollte nicht passieren)
+            if input_range <= 1e-6: normalized_input_x = 1.0
+            else: normalized_input_x = (abs(raw_x) - self._pi_side_deadzone) / input_range
+
+            # Berechne den verfügbaren Output-Bereich über dem Minimum
+            output_range = max_speed_factor - effective_min_output
+            # Stelle sicher, dass der Bereich nicht negativ ist
+            if output_range < 0: output_range = 0
+
+            # Bilde den normalisierten Input auf den Output-Bereich ab und addiere das Minimum
+            scaled_output_x = effective_min_output + normalized_input_x * output_range
+
+            # Wende Vorzeichen wieder an und skaliere auf RLink-Wertebereich
+            target_x = math.copysign(scaled_output_x * 127.0, raw_x)
+
+        # Berechne Ziel für Y mit Remapping (gleiche Logik)
+        target_y = 0.0
+        if abs(raw_y) >= self._pi_side_deadzone:
+            input_range = 1.0 - self._pi_side_deadzone
+            if input_range <= 1e-6: normalized_input_y = 1.0
+            else: normalized_input_y = (abs(raw_y) - self._pi_side_deadzone) / input_range
+
+            output_range = max_speed_factor - effective_min_output
+            if output_range < 0: output_range = 0
+            scaled_output_y = effective_min_output + normalized_input_y * output_range
+            target_y = math.copysign(scaled_output_y * 127.0, raw_y)
+
+        # Setze die Ziele für die Rampe
+        self._target_x_for_ramping = target_x
+        self._target_y_for_ramping = target_y
+
+        # Wende Rampe an und sende Befehl
+        try:
             self._apply_drive_ramp_and_send()
+        except Exception as e: print(f"Fehler in _apply_drive_ramp_and_send: {e}", file=sys.stderr)
 
     def _apply_drive_ramp_and_send(self):
         """Interne Methode, um die Rampe anzuwenden und set_xy zu senden."""

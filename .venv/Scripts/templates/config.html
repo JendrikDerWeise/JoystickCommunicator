@@ -7,18 +7,22 @@
     <style>
         body { font-family: sans-serif; margin: 20px; background-color: #f4f4f4; }
         .container { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
-        h1 { text-align: center; color: #333; }
+        h1, h2 { text-align: center; color: #333; }
+        h2 { margin-top: 25px; border-bottom: 1px solid #eee; padding-bottom: 5px;}
         label { display: block; margin-top: 15px; margin-bottom: 5px; font-weight: bold; color: #555;}
-        input[type="number"] { width: 95%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; }
-        input[type="submit"] { display: block; width: 100%; padding: 10px 15px; margin-top: 20px; background-color: #5cb85c; color: white; border: none; border-radius: 4px; font-size: 1.1em; cursor: pointer; }
+        input[type="number"] { width: 95%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 1em; -moz-appearance: textfield; /* Firefox */ }
+        input[type="number"]::-webkit-outer-spin-button, /* Chrome, Safari, Edge, Opera */
+        input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type="submit"] { display: block; width: 100%; padding: 10px 15px; margin-top: 25px; background-color: #5cb85c; color: white; border: none; border-radius: 4px; font-size: 1.1em; cursor: pointer; transition: background-color 0.2s; }
         input[type="submit"]:hover { background-color: #4cae4c; }
-        .flash { padding: 10px; margin-bottom: 15px; border-radius: 4px; text-align: center; }
+        .flash { padding: 12px; margin-bottom: 18px; border-radius: 4px; text-align: center; font-weight: bold;}
         .flash.success { background-color: #dff0d8; color: #3c763d; border: 1px solid #d6e9c6; }
         .flash.error { background-color: #f2dede; color: #a94442; border: 1px solid #ebccd1; }
         .flash.warning { background-color: #fcf8e3; color: #8a6d3b; border: 1px solid #faebcc; }
-        .gear-group { margin-bottom: 10px; }
-        .gear-group label { display: inline-block; width: 80px; }
-        .help-text { font-size: 0.9em; color: #777; margin-top: 5px;}
+        .gear-group { margin-bottom: 10px; display: flex; align-items: center; }
+        .gear-group label { display: inline-block; width: 80px; margin: 0 10px 0 0; text-align: right;}
+        .gear-group input { flex-grow: 1; width: auto; }
+        .help-text { font-size: 0.9em; color: #777; margin-top: 5px; margin-bottom: 15px;}
     </style>
 </head>
 <body>
@@ -34,25 +38,44 @@
         {% endwith %}
 
         <form action="{{ url_for('save_config_route') }}" method="post">
-            <h2>Gänge (Max. Geschwindigkeitsfaktor)</h2>
-            <p class="help-text">Stelle den Faktor ein (0.0 bis 1.0), mit dem die Joystick-Eingabe für jeden Gang multipliziert wird (z.B. 0.2 = 20% max. Geschwindigkeit).</p>
+
+            <h2>Gänge (Max. Geschwindigkeit)</h2>
+            <p class="help-text">Faktor (0.0 bis 1.0) für die maximale Geschwindigkeit in jedem Gang (z.B. 0.2 = 20%). Beeinflusst nicht mehr direkt die Deadzone.</p>
             {% for i in range(1, 6) %}
             <div class="gear-group">
                 <label for="gear{{ i }}">Gang {{ i }}:</label>
                 <input type="number" id="gear{{ i }}" name="gear{{ i }}"
-                       value="{{ config.gear_factors[i|string] | default(0.2 * i, true) }}"
+                       value="{{ config.gear_factors.get(i|string, 0.2 * i) }}"
                        min="0.0" max="1.0" step="0.05" required>
             </div>
             {% endfor %}
 
-            <h2>Beschleunigung / Rampe</h2>
-             <p class="help-text">Maximaler Änderungswert pro Steuerzyklus (ca. {{ (1 / config.get('LOOP_CONTROL_SLEEP', 0.04)) | round }} Mal pro Sekunde). Größere Werte = schnellere Beschleunigung/Verzögerung. Kleinere Werte = sanfter. Wert muss > 0 sein.</p>
+            <h2>Ansprechverhalten</h2>
+
+            <label for="pi_deadzone">Deadzone (Pi):</label>
+            <input type="number" id="pi_deadzone" name="pi_deadzone"
+                   value="{{ config.pi_side_deadzone | default(0.1, true) }}"
+                   min="0.0" max="0.95" step="0.01" required>
+            <p class="help-text">Joystick-Werte (von -1 bis 1), deren Betrag kleiner ist als dieser Wert, werden auf dem Pi ignoriert (auf 0 gesetzt).</p>
+
+            <label for="min_command">Min. RLink Ansteuerung:</label>
+            <input type="number" id="min_command" name="min_command"
+                   value="{{ config.min_rlink_command | default(10, true) }}"
+                   min="1" max="50" step="1" required> <p class="help-text">Minimaler Wert (1-127), der an die Rollstuhl-Schnittstelle (RLink) gesendet werden muss, damit eine Bewegung beginnt. Muss experimentell ermittelt werden!</p>
+
             <label for="acceleration">Beschleunigungsschritt:</label>
             <input type="number" id="acceleration" name="acceleration"
-                   value="{{ config.acceleration_step | default(10, true) }}"
-                   min="0.1" step="0.1" required> <input type="submit" value="Einstellungen Speichern">
+                   value="{{ config.acceleration_step | default(2.0, true) }}"
+                   min="0.1" step="0.1" required>
+            <p class="help-text">Maximale Änderung des RLink-Werts pro Steuerzyklus auf dem Pi. Kleinere Werte = sanftere Beschleunigung/Verzögerung.</p>
+
+
+            <input type="submit" value="Einstellungen Speichern">
         </form>
-         <p class="help-text" style="margin-top: 20px; text-align: center;">Hinweis: Das Rollstuhl-Steuerungsskript muss neu gestartet werden, damit die Änderungen wirksam werden.</p>
+         <p class="help-text" style="margin-top: 20px; text-align: center;">
+             Hinweis: Das Python-Skript `WheelchairControlReal.py` (oder der Dienst, der es startet) muss eventuell neu gestartet werden, damit die Änderungen wirksam werden, wenn es die Konfiguration nur beim Start lädt. <br>
+             <a href="/">Zurück zur ML2 Sprachbefehl-Konfiguration</a>
+         </p>
     </div>
 </body>
 </html>
