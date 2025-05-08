@@ -8,6 +8,7 @@ import sys
 
 # --- Konfiguration für Rollstuhl-Parameter ---
 CONFIG_FILE = "wheelchair_config.json" # Name der Speicherdatei
+GIT_PULL_DIRECTORY = "/home/jendrik/projekte/JoystickCommunicator"
 DEFAULT_CONFIG = {
     "gear_factors": {
         "1": 0.2, "2": 0.4, "3": 0.6, "4": 0.8, "5": 1.0
