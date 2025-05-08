@@ -299,7 +299,7 @@ if __name__ == "__main__":
     print("(Ersetze <IP-Adresse-des-Pi> mit der tatsächlichen IP, z.B. 192.168.4.1 im Hotspot-Modus)")
     print("(Drücke Strg+C zum Beenden)")
     try:
-        app.run(host="0.0.0.0", port=80, debug=False)
+        app.run(host="0.0.0.0", port=80, debug=True)
     except OSError as e:
         if e.errno == 98 or "Address already in use" in str(e): print(f"\nFEHLER: Port 80 wird bereits verwendet.", file=sys.stderr)
         elif e.errno == 13 or "Permission denied" in str(e): print(f"\nFEHLER: Keine Berechtigung für Port 80.\nVersuche 'sudo python3 {os.path.basename(__file__)}'", file=sys.stderr)
