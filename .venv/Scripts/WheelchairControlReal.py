@@ -58,7 +58,8 @@ class WheelchairControlReal:
     _current_sent_y = 0.0
     _gear_factors = {}
     _acceleration_step = 10.0
-
+    _pi_side_deadzone = 0.1
+    _min_rlink_command = 10
 
     def __init__(self, device_index=0, config_filepath=CONFIG_FILE):
         print("Initialisiere WheelchairControlReal...")
