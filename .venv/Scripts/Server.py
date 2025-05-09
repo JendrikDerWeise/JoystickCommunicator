@@ -8,6 +8,7 @@ import socket  # Für UDP-Broadcast
 import random
 import struct
 from WheelchairControlReal import WheelchairControlReal
+import os
 
 # --- Konstanten ---
 HEARTBEAT_INTERVAL = 2  # Sekunden (Heartbeat-Intervall vom *Client*)
@@ -24,6 +25,10 @@ last_heartbeat = 0    # Zeitpunkt des letzten empfangenen Heartbeats
 publisher_socket = None # Publisher Socket (zum Senden von Daten)
 subscriber_socket = None # Subscriber Socket (zum Empfangen von Heartbeats und READY)
 wheelchair = WheelchairControlReal()
+
+# --- Globale Variablen für ML2 Konfig-Senden ---
+CONFIG_TRIGGER_FILE = "send_ml2_config_trigger.flag" # Wie in app.py definiert
+last_config_send_time = 0 # Zeitstempel des letzten Config-Sendens
 
 def is_little_endian():
     """Überprüft, ob das System Little-Endian ist."""
@@ -263,7 +268,7 @@ def run_server():
         float_value = 0
         last_heartbeat_send = 0  # Zeitpunkt des letzten Sendens.
         last_rlink_heartbeat_send = time.time()  # NEU: Für Heartbeat ZUM Rollstuhl
-        HEARTBEAT_INTERVAL = 0.2
+        HEARTBEAT_INTERVAL_RLINK = 0.2
 
         while True:  # Hauptkommunikationsschleife
             try:
@@ -273,18 +278,43 @@ def run_server():
                     last_heartbeat_send = time.time()  # Aktualisiere den Zeitpunkt des Sendens
 
                 # --- Heartbeat ZUM Rollstuhl(RLink) ---
-                if time.time() - last_rlink_heartbeat_send > HEARTBEAT_INTERVAL:
+                if time.time() - last_rlink_heartbeat_send > HEARTBEAT_INTERVAL_RLINK:
                     if wheelchair.send_rlink_heartbeat():  # Rufe die neue Methode auf
                         last_rlink_heartbeat_send = time.time()
                     else:
                         print("Konnte RLink Heartbeat nicht senden, möglicherweise Verbindungsproblem.")
 
+                if os.path.exists(CONFIG_TRIGGER_FILE):
+                    try:
+                        trigger_timestamp = os.path.getmtime(CONFIG_TRIGGER_FILE)
+                        if trigger_timestamp > last_config_send_time:
+                            with open(CONFIG_TRIGGER_FILE, 'r') as f:
+                                config_json_str = f.read()
+
+                            if config_json_str and publisher_socket:
+                                print(f"Sende ML2 Joystick Konfiguration (Trigger, Länge: {len(config_json_str)})...")
+                                publisher_socket.send_multipart([b"joystick_settings", config_json_str.encode('utf-8')])
+                                last_config_send_time = trigger_timestamp
+                                try:
+                                    os.remove(CONFIG_TRIGGER_FILE)
+                                    print("Trigger-Datei für ML2-Konfig gelöscht.")
+                                except OSError as e_remove:
+                                    print(f"Fehler beim Löschen der Trigger-Datei '{CONFIG_TRIGGER_FILE}': {e_remove}")
+                            elif not config_json_str:  # Falls Datei leer ist
+                                print("Trigger-Datei ist leer, lösche sie.")
+                                try:
+                                    os.remove(CONFIG_TRIGGER_FILE)
+                                except OSError as e_remove:
+                                    print(
+                                        f"Fehler beim Löschen der leeren Trigger-Datei '{CONFIG_TRIGGER_FILE}': {e_remove}")
+                    except FileNotFoundError:
+                        pass
+                    except Exception as e_config:
+                        print(f"Fehler beim Lesen/Senden der ML2 Joystick Konfiguration: {e_config}")
+
                 # Sende Testnachrichten (Beispiele)
                 speed = wheelchair.get_wheelchair_speed()
                 float_value = to_network_order(speed, 'f')
-                string_value = "Hello Du!"
-                #f = str(float_value)
-                #f = str(f).replace(".", ",")
                 publisher_socket.send_multipart([b"topic_float", float_value])
                 #publisher_socket.send_multipart([b"topic_string", string_value.encode()])
 
