@@ -72,9 +72,10 @@
 
             <input type="submit" value="Einstellungen Speichern">
         </form>
-         <p class="help-text" style="margin-top: 20px; text-align: center;">
+        <p class="help-text" style="margin-top: 20px; text-align: center;">
              Hinweis: Das Python-Skript `WheelchairControlReal.py` (oder der Dienst, der es startet) muss eventuell neu gestartet werden, damit die Änderungen wirksam werden, wenn es die Konfiguration nur beim Start lädt. <br>
-             <a href="/">Zurück zur ML2 Sprachbefehl-Konfiguration</a>
+             <a href="/">Zurück zur ML2 Sprachbefehl-Konfiguration</a><br>
+             <a href="{{ url_for('show_ml2_config') }}">Zur ML2 Joystick-Parameter Konfiguration</a>
          </p>
     </div>
 </body>
