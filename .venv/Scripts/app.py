@@ -259,6 +259,64 @@ def show_ml2_config():
     current_ml2_config = load_config(CONFIG_FILE_ML2, DEFAULT_CONFIG_ML2)
     return render_template('ml2_config.html', config=current_ml2_config)
 
+@app.route('/control/git_pull', methods=['POST'])
+def git_pull_route():
+    """Führt 'git pull' im angegebenen Verzeichnis aus."""
+    abs_path = os.path.abspath(GIT_PULL_DIRECTORY)
+    print(f"Versuche 'git pull' in {abs_path} via Web-Button.")
+    message = f"Git pull für {abs_path} wird versucht..."
+    category = "info"
+
+    # Prüfe, ob das Verzeichnis existiert
+    if not os.path.isdir(abs_path):
+        message = f"Fehler: Verzeichnis {abs_path} nicht gefunden!"
+        category = "error"
+        print(message, file=sys.stderr)
+        flash(message, category)
+        return redirect(url_for('index'))
+
+    git_command = ['git', 'pull']
+    try:
+        # Führe 'git pull' direkt aus, im richtigen Verzeichnis (cwd)
+        # Läuft als der Benutzer, der den Flask-Server ausführt!
+        result = subprocess.run(
+            git_command,
+            cwd=abs_path,                   # WICHTIG: Arbeitsverzeichnis setzen!
+            capture_output=True,
+            text=True,
+            check=True,                     # Löst CalledProcessError aus, wenn git pull fehlschlägt
+            timeout=45                      # Timeout für den Pull-Vorgang
+        )
+        message = f"'git pull' in {abs_path} erfolgreich!"
+        category = "success"
+        print(f"Git pull erfolgreich. Ausgabe:\n{result.stdout}")
+        # Zeige die Git-Ausgabe in der Flash-Nachricht an (kann lang sein!)
+        flash(message + f"\n--- Git Output ---\n{result.stdout}\n--- End Output ---", category)
+
+    except FileNotFoundError:
+        message = "Fehler: 'git' Kommando nicht gefunden. Ist git installiert und im PATH?"
+        category = "error"
+        print(message, file=sys.stderr)
+        flash(message, category)
+    except subprocess.CalledProcessError as e:
+        message = f"Fehler bei 'git pull' in {abs_path} (Exit Code {e.returncode})."
+        category = "error"
+        error_details = e.stderr.strip() if e.stderr else e.stdout.strip() # Manchmal ist Fehler in stdout
+        print(f"{message}\nFehlermeldung von Git:\n{error_details}", file=sys.stderr)
+        flash(message + f"\n--- Git Error ---\n{error_details}\n--- End Error ---", category)
+    except subprocess.TimeoutExpired:
+        message = f"Timeout beim Ausführen von 'git pull' in {abs_path}."
+        category = "error"
+        print(message, file=sys.stderr)
+        flash(message, category)
+    except Exception as e:
+        message = f"Unerwarteter Fehler beim 'git pull': {str(e)}"
+        category = "error"
+        print(message, file=sys.stderr)
+        flash(message, category)
+
+    return redirect(url_for('index'))
+
 
 @app.route('/save_ml2_config', methods=['POST'])
 def save_ml2_config_route():
