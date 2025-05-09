@@ -108,7 +108,7 @@ def get_magic_leap_ip_adb():
             result = subprocess.run(['adb', 'shell', 'ip', 'route'], capture_output=True, text=True, check=True)
             for line in result.stdout.splitlines():
                 # --- KORREKTUR der Bedingung ---
-                if "dev mlnet0" in line or "eth1" in line or "wlan0" in line: # Typische Interface-Namen, erweitere bei Bedarf
+                if "dev mlnet0" or "eth1" in line: # Typische Interface-Namen, erweitere bei Bedarf
                 # --- ENDE KORREKTUR ---
                     match = re.search(r'src (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', line)
                     if match:
