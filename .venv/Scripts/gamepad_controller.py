@@ -83,7 +83,16 @@ class GamepadController:
         print("Gamepad event thread started.")
         device_path = self._find_gamepad()
         if not device_path:
-            self.quit_event.set();
+            self.quit_event.set()
+            print("Gamepad event thread finished (no device).")
+            return
+
+        try:
+            self.gamepad_device = InputDevice(device_path)
+
+            # --- KORRIGIERTE STELLE ---
+            # capabilities[ecodes.EV_ABS] gibt eine Liste von Tupeln (code, AbsInfo) zurück
+            # oder eine leere Liste, wenn keine ABS-Events vorhanden sind.
             abs_capabilities_list = self.gamepad_device.capabilities().get(ecodes.EV_ABS, [])
             if not isinstance(abs_capabilities_list, list):  # Sicherheitscheck
                 print(f"WARNUNG: Unerwarteter Typ für ABS Capabilities: {type(abs_capabilities_list)}", file=sys.stderr)
@@ -93,56 +102,77 @@ class GamepadController:
                 code: (info.min, info.max)
                 for code, info in abs_capabilities_list  # Iteriere direkt über die Liste der Tupel
             }
-            print("Gamepad event thread finished (no device).");
-            return
-        try:
-            self.gamepad_device = InputDevice(device_path)
-            abs_info = self.gamepad_device.capabilities().get(ecodes.EV_ABS, {})
-            self.min_max_axis_vals = {code: (info.min, info.max) for code, info in abs_info.items()}
+            # --- ENDE KORRIGIERTE STELLE ---
+
             print(f"Gamepad '{self.gamepad_device.name}' verbunden.")
+            print(f"Gefundene Achsen-Min/Max-Werte: {self.min_max_axis_vals}")  # Wichtige Debug-Ausgabe
+
+            # Optional den exklusiven Zugriff anfordern:
+            # try:
+            #     self.gamepad_device.grab()
+            #     print("Tastatur exklusiv erfasst (grabbed).")
+            # except Exception as e_grab:
+            #     print(f"Warnung: Konnte Gamepad nicht exklusiv erfassen: {e_grab}", file=sys.stderr)
+
         except Exception as e:
-            print(f"Fehler beim Öffnen des Gamepads {device_path}: {e}", file=sys.stderr)
-            if isinstance(e, OSError) and e.errno == 13: print("-> Keine Berechtigung?", file=sys.stderr)
-            self.quit_event.set();
-            print("Gamepad event thread finished (error).");
+            print(f"Fehler beim Öffnen oder Initialisieren des Gamepads {device_path}: {e}", file=sys.stderr)
+            if isinstance(e, OSError) and e.errno == 13:
+                print("-> Möglicherweise fehlende Berechtigungen für /dev/input/* (sudo oder Gruppe 'input'?)",
+                      file=sys.stderr)
+            self.quit_event.set()
+            print("Gamepad event thread finished (error).")
             return
+
         try:
             for event in self.gamepad_device.read_loop():
-                if self.quit_event.is_set(): break
+                if self.quit_event.is_set():
+                    break
+
+                # print(f"RAW EVENT: type={event.type}, code={event.code}, value={event.value}") # Intensives Debugging
                 if event.type == ecodes.EV_ABS:
-                    min_val, max_val = self.min_max_axis_vals.get(event.code, (0, 255))
+                    min_val, max_val = self.min_max_axis_vals.get(event.code, (0, 255))  # Default auf 0-255
+
                     if event.code == ABS_LEFT_X:
                         self.left_x = self._normalize_axis(event.value, min_val, max_val)
                     elif event.code == ABS_LEFT_Y:
-                        self.left_y = -self._normalize_axis(event.value, min_val, max_val)
+                        self.left_y = -self._normalize_axis(event.value, min_val, max_val)  # Y oft invertiert
                     elif event.code == ABS_RIGHT_X:
                         self.right_x = self._normalize_axis(event.value, min_val, max_val)
                     elif event.code == ABS_RIGHT_Y:
-                        self.right_y = -self._normalize_axis(event.value, min_val, max_val)
+                        self.right_y = -self._normalize_axis(event.value, min_val, max_val)  # Y oft invertiert
                     elif event.code == ABS_LT:
                         self.lt_value = self._normalize_trigger(event.value, min_val, max_val)
                     elif event.code == ABS_RT:
                         self.rt_value = self._normalize_trigger(event.value, min_val, max_val)
+
                 elif event.type == ecodes.EV_KEY:
-                    is_pressed = (event.value == 1 or event.value == 2)
+                    is_pressed = (event.value == 1 or event.value == 2)  # DOWN oder HOLD
                     self._handle_button_event(event.code, is_pressed)
-                    if event.code == BTN_QUIT_APP and event.value == 1:
+
+                    # Spezifische Quit-Logik (redundant, wenn _handle_button_event es tut, aber sicher)
+                    if event.code == BTN_QUIT_APP and event.value == 1:  # Nur bei Drücken
                         print("Gamepad: Quit-Signal (BTN_QUIT_APP) empfangen.")
-                        self.quit_event.set();
+                        self.quit_event.set()
                         break
         except IOError as e:
-            print(f"IOError im Gamepad-Thread: {e}", file=sys.stderr)
+            # Dieser Fehler tritt oft auf, wenn das Gamepad getrennt wird
+            print(f"IOError im Gamepad-Thread (Gamepad getrennt?): {e}", file=sys.stderr)
         except Exception as e:
-            print(f"Unerwarteter Fehler im Gamepad-Thread: {e}", file=sys.stderr); import \
-                traceback; traceback.print_exc()
+            print(f"Unerwarteter Fehler im Gamepad-Event-Thread: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc()
         finally:
-            self.quit_event.set()
+            self.quit_event.set()  # Sicherstellen, dass auch der Control-Thread beendet wird
             if self.gamepad_device:
                 try:
                     self.gamepad_device.ungrab()
-                except:
-                    pass
-                self.gamepad_device.close()
+                    # print("Gamepad freigegeben (ungrabbed).") # Optional
+                except Exception:
+                    pass  # Fehler beim Ungrab ignorieren
+                try:
+                    self.gamepad_device.close()
+                except Exception as e_close:
+                    print(f"Fehler beim Schließen des Gamepad-Geräts: {e_close}", file=sys.stderr)
         print("Gamepad event thread finished.")
 
     def _find_gamepad(self):
