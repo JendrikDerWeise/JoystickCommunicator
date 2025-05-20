@@ -110,7 +110,7 @@ def get_magic_leap_ip_adb():
                 result = subprocess.run(adb_command, capture_output=True, text=True, check=True, timeout=5)
                 for line in result.stdout.splitlines():
                     line = line.strip()
-                    if line.startswith("inet "):
+                    if line.startswith("dev mlnet0") or line.startswith("eth1"):
                         ip_address = line.split()[1].split('/')[0]
                         # Annahme: ML2 USB-Netzwerk ist oft ein spezifisches Subnetz
                         # Du hattest 192.168.42.x, das ist gut für die Unterscheidung
