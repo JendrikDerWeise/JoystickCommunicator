@@ -10,7 +10,7 @@ try:
     from WheelchairControlReal import (
         WheelchairControlReal, RLinkError,
         RLinkLight, RLinkAxisId, RLinkAxisDir,
-        SEAT_TILT_AXIS_ID, SEAT_HEIGHT_AXIS_ID,  # Importiere die Achsen-IDs
+        SEAT_TILT_AXIS_ID, #SEAT_HEIGHT_AXIS_ID,  # Importiere die Achsen-IDs
         TILT_THRESHOLD_NORMALIZED, HEIGHT_THRESHOLD_NORMALIZED
     )
 except ImportError as e:
