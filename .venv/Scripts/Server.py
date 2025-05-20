@@ -408,7 +408,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\nCtrl+C erkannt. Beende Hauptserver...")
     finally:
-        print("Beende alle Komponenten des Hauptservers...")
+        print("Beende alle Komponenten des Hauptservers.")
         if gamepad_ctrl:  # gamepad_ctrl ist jetzt global (oder in run_server deklariert)
             gamepad_ctrl.stop()
         if wc_instance:  # wc_instance ist jetzt global (oder in run_server deklariert)
