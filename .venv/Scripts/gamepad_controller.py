@@ -294,8 +294,8 @@ class GamepadController:
         print(f" - {ecodes.BTN[BTN_WARN].replace('BTN_', '') if BTN_WARN in ecodes.BTN else 'N/A'}: Warnblinker AN/AUS")
         print(
             f" - {ecodes.BTN[BTN_KANTELUNG_MODE].replace('BTN_', '') if BTN_KANTELUNG_MODE in ecodes.BTN else 'N/A'}: Kantelungsmodus AN/AUS")
-        print(
-            f" - {ecodes.BTN[BTN_HEIGHT_MODE].replace('BTN_', '') if BTN_HEIGHT_MODE in ecodes.BTN else 'N/A'}: Sitzhöhenmodus AN/AUS")
+        #print(
+            #f" - {ecodes.BTN[BTN_HEIGHT_MODE].replace('BTN_', '') if BTN_HEIGHT_MODE in ecodes.BTN else 'N/A'}: Sitzhöhenmodus AN/AUS")
         print(f" - {ecodes.BTN[BTN_QUIT_APP].replace('BTN_', '') if BTN_QUIT_APP in ecodes.BTN else 'N/A'}: Beenden")
         print("---------------------------------------------------------------")
 
