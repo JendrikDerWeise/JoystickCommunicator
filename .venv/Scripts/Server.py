@@ -14,7 +14,7 @@ import os  # Für os.path.exists, os.remove
 
 # Importiere deine Module
 try:
-    from wheelchair_control_module import WheelchairControlReal, RLinkError
+    from WheelchairControlReal import WheelchairControlReal, RLinkError
 except ImportError as e:
     print(f"Fehler: wheelchair_control_module.py nicht gefunden oder Inhalt fehlerhaft: {e}", file=sys.stderr)
     sys.exit(1)
