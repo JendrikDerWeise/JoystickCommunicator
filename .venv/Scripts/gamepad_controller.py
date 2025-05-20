@@ -7,7 +7,7 @@ import math
 
 try:
     # Passe den Modulnamen an, falls deine WheelchairControlReal-Klasse woanders liegt
-    from wheelchair_control_module import (
+    from WheelchairControlReal import (
         WheelchairControlReal, RLinkError,
         RLinkLight, RLinkAxisId, RLinkAxisDir,
         SEAT_TILT_AXIS_ID, SEAT_HEIGHT_AXIS_ID,  # Importiere die Achsen-IDs
