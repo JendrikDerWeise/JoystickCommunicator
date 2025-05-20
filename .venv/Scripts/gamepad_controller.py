@@ -91,7 +91,7 @@ class GamepadController:
                 keys = cap.get(ecodes.EV_KEY, [])  # Sicherer Zugriff
                 has_sticks = (ABS_LEFT_X in abs_axes and ABS_LEFT_Y in abs_axes and
                               ABS_RIGHT_X in abs_axes and ABS_RIGHT_Y in abs_axes)
-                has_buttons = (BTN_A_BUTTON in keys and BTN_LB_BUMPER in keys)  # Mindestprüfung
+                has_buttons = (BTN_HORN in keys and BTN_KANTELUNG_MODE in keys)  # Mindestprüfung
                 if has_sticks and has_buttons:
                     print(f"Gamepad gefunden: {device.path} ({device.name})")
                     return device.path
@@ -253,7 +253,7 @@ class GamepadController:
                 self._trigger_pressed_lt = lt_is_pressed_now
 
                 # 5. Heartbeat an RLink senden
-                self.wheelchair.heartbeat()
+                self.wheelchair.send_rlink_heartbeat()
 
                 time.sleep(LOOP_CONTROL_SLEEP)
         except Exception as e:
