@@ -81,6 +81,9 @@
         <form action="{{ url_for('zmq_server_stop') }}" method="POST">
             <button type="submit" class="stop-button">ZMQ Server STOP</button>
         </form>
+        <form action="{{ url_for('toggle_joystick_visibility_route') }}" method="POST" style="display: inline-block;">
+            <button type="submit" class="joystick-toggle-button">Joystick Sichtbarkeit Umschalten</button>
+        </form>
     </div>
     <h1>Magic Leap 2 Dateneingabe</h1>
 
