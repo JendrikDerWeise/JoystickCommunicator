@@ -1,407 +1,426 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 import zmq
 import subprocess
 import time
 import re
 import netifaces
 import sys
-import socket  # Für UDP-Broadcast
-import random
+import socket
+import random  # Für alte get_wheelchair_speed, falls noch irgendwo referenziert
 import struct
-from WheelchairControlReal import WheelchairControlReal
-import os
+import os  # Für os.path.exists, os.remove
+
+# Importiere deine Module
+try:
+    from wheelchair_control_module import WheelchairControlReal, RLinkError
+except ImportError as e:
+    print(f"Fehler: wheelchair_control_module.py nicht gefunden oder Inhalt fehlerhaft: {e}", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    from gamepad_controller import GamepadController
+except ImportError as e:
+    print(f"Fehler: gamepad_controller.py nicht gefunden oder Inhalt fehlerhaft: {e}", file=sys.stderr)
+    sys.exit(1)
 
 # --- Konstanten ---
-HEARTBEAT_INTERVAL = 2  # Sekunden (Heartbeat-Intervall vom *Client*)
-RECONNECT_INTERVAL = 10# Sekunden (Wartezeit vor Server-Neustart)
-INITIAL_CONNECTION_TIMEOUT = 30  # Sekunden (Timeout für das erste "READY"-Signal)
-BROADCAST_PORT = 50000     # Port für UDP-Broadcast (optional)
+HEARTBEAT_INTERVAL_ML = 2  # Sekunden (Heartbeat-Intervall vom *Client* ML2)
+RECONNECT_INTERVAL_ZMQ = 10  # Sekunden (Wartezeit vor ZMQ-Server-Neustart)
+# INITIAL_CONNECTION_TIMEOUT = 30 # Wird jetzt im ZMQ-Socket direkt gesetzt
+# BROADCAST_PORT = 50000 # Unverändert, falls genutzt
 
-# --- ZeroMQ-Kontext erstellen ---
-context = zmq.Context()
+# --- ZeroMQ-Kontext erstellen (global) ---
+context = zmq.Context.instance()  # Globale Instanz verwenden
 
 # --- Globale Variablen (mit Bedacht verwenden!) ---
-magic_leap_ip = None  # IP-Adresse der Magic Leap 2
-last_heartbeat = 0    # Zeitpunkt des letzten empfangenen Heartbeats
-publisher_socket = None # Publisher Socket (zum Senden von Daten)
-subscriber_socket = None # Subscriber Socket (zum Empfangen von Heartbeats und READY)
-wheelchair = WheelchairControlReal()
+magic_leap_ip = None
+# Die folgenden Sockets werden in run_server() verwaltet
+publisher_socket_to_ml = None  # Socket zum Senden an die Magic Leap
+subscriber_socket_from_ml = None  # Socket zum Empfangen von der Magic Leap
 
-# --- Globale Variablen für ML2 Konfig-Senden ---
-CONFIG_TRIGGER_FILE = "send_ml2_config_trigger.flag" # Wie in app.py definiert
-last_config_send_time = 0 # Zeitstempel des letzten Config-Sendens
+# Instanzen für Rollstuhl und Gamepad (werden in run_server initialisiert)
+wc_instance: WheelchairControlReal | None = None
+gamepad_ctrl: GamepadController | None = None
 
+# --- Trigger-Dateien (wie in deinem Flask-Server) ---
+CONFIG_TRIGGER_FILE = "send_ml2_config_trigger.flag"  # Für ML2 Joystick-Einstellungen
 JOYSTICK_VISIBILITY_TRIGGER_FILE = "/tmp/joystick_visibility_trigger.txt"
+last_config_send_time = 0
 
+
+# --- Netzwerk- und Konvertierungsfunktionen (unverändert) ---
 def is_little_endian():
-    """Überprüft, ob das System Little-Endian ist."""
     return sys.byteorder == 'little'
 
+
 def to_network_order(value, data_type):
-    if data_type == 'i': # Integer
-      if is_little_endian():
-          return struct.pack('>i', value)  # '>' für Big-Endian
-      return struct.pack('i',value)
-    elif data_type == 'f':  # Float
-      if is_little_endian():
-          return struct.pack('>f', value)
-      return struct.pack('f',value)
-    elif data_type == 'd':  # Double
-      if is_little_endian():
-        return struct.pack('>d', value)
-      return struct.pack('d',value)
-    elif data_type == '?': #Bool
-      return struct.pack('?', value)
-    else:
-        raise ValueError("Ungültiger Datentyp")
+    pack_format = data_type
+    if is_little_endian() and data_type in ('i', 'f', 'd'): pack_format = '>' + data_type
+    try:
+        return struct.pack(pack_format, value)
+    except Exception as e:
+        raise ValueError(f"Pack-Fehler für Typ {data_type}, Wert {value}: {e}")
 
 
 def from_network_order(data, data_type):
-    """Konvertiert einen Wert von Big-Endian (Network Byte Order) zum Host-System."""
-    if data_type == 'i':
-      if is_little_endian():
-        return struct.unpack('>i', data)[0]  # '>' für Big-Endian
-      return struct.unpack('i',data)[0]
-    elif data_type == 'f':
-       if is_little_endian():
-        return struct.unpack('>f', data)[0]
-       return struct.unpack('f', data)[0]
-    elif data_type == 'd':
-       if is_little_endian():
-          return struct.unpack('>d',data)[0]
-       return struct.unpack('d',data)[0]
-    elif data_type == '?':
-        return struct.unpack('?',data)[0]
-    else:
-        raise ValueError("Ungültiger Datentyp")
-
-
-def get_correct_network_interface(magic_leap_ip):
-    """
-    Findet die Netzwerkschnittstelle des PCs, die im gleichen Subnetz wie die
-    Magic Leap 2 ist.  Wird benötigt, um die *eigene* IP-Adresse des PCs zu
-    bestimmen, an die der PublisherSocket gebunden werden soll.
-    """
-    if not magic_leap_ip:  # Stelle sicher, dass eine IP-Adresse vorhanden ist
-        return None
-
+    pack_format = data_type
+    if is_little_endian() and data_type in ('i', 'f', 'd'): pack_format = '>' + data_type
     try:
-        magic_leap_subnet = ".".join(magic_leap_ip.split(".")[:3])  # z.B. "192.168.1"
-        interfaces = netifaces.interfaces()  # Liste aller Netzwerkschnittstellen
+        return struct.unpack(pack_format, data)[0]
+    except Exception as e:
+        raise ValueError(f"Unpack-Fehler für Typ {data_type}, Daten {data}: {e}")
+
+
+def get_correct_network_interface(target_ip_for_subnet_check):
+    if not target_ip_for_subnet_check: return None
+    try:
+        target_subnet = ".".join(target_ip_for_subnet_check.split(".")[:3])
+        interfaces = netifaces.interfaces()
         for interface in interfaces:
             try:
-                iface_details = netifaces.ifaddresses(interface)  # Details der Schnittstelle
-                if netifaces.AF_INET in iface_details:  # IPv4-Adressen?
-                    ipv4_details = iface_details[netifaces.AF_INET]
-                    for ip_info in ipv4_details:
-                        ip_address = ip_info['addr']  # IP-Adresse der Schnittstelle
-                        if ip_address != '127.0.0.1':  # Loopback-Adresse ignorieren
-                            interface_subnet = ".".join(ip_address.split(".")[:3])
-                            if interface_subnet == magic_leap_subnet:  # Passt das Subnetz?
-                                print(f"Korrekte Schnittstelle gefunden: {interface} ({ip_address})")
-                                return ip_address  # Korrekte IP-Adresse zurückgeben
-            except Exception as e:
-                print(f"Fehler bei der Überprüfung der Schnittstelle {interface}: {e}")
-                # Bei Fehlern einfach weitermachen mit der nächsten Schnittstelle
-        return None  # Keine passende Schnittstelle gefunden
-
-    except Exception as e:
-        print(f"Unerwarteter Fehler in get_correct_network_interface: {e}")
+                iface_details = netifaces.ifaddresses(interface)
+                if netifaces.AF_INET in iface_details:
+                    for ip_info in iface_details[netifaces.AF_INET]:
+                        ip_address = ip_info['addr']
+                        if ip_address != '127.0.0.1' and ".".join(ip_address.split(".")[:3]) == target_subnet:
+                            print(
+                                f"Korrekte Netzwerkschnittstelle für Subnetz {target_subnet} gefunden: {interface} ({ip_address})")
+                            return ip_address
+            except Exception:
+                pass  # Ignoriere Fehler bei einzelnen Interfaces
+        print(f"Warnung: Keine passende Netzwerkschnittstelle im Subnetz von {target_ip_for_subnet_check} gefunden.",
+              file=sys.stderr)
         return None
+    except NameError:
+        print("Fehler: 'netifaces' nicht gefunden. (pip install netifaces)", file=sys.stderr); return None
+    except Exception as e:
+        print(f"Fehler in get_correct_network_interface: {e}", file=sys.stderr); return None
 
 
 def get_magic_leap_ip_adb():
-    """Ermittelt die IP-Adresse der Magic Leap 2 über ADB (zuverlässiger)."""
+    adb_command = ['adb', 'shell', 'ip', 'addr']
     try:
-        start_time = time.time()
-        timeout = 10
-
+        start_time = time.time();
+        timeout = 15
         while time.time() - start_time < timeout:
-            # 'adb shell ip route' gibt die Routing-Tabelle aus.
-            # Die Ausgabe ist je nach Android-Version und Gerät unterschiedlich.
-            # Das folgende Kommando funktioniert auf der ML2 und filtert die Ausgabe.
-            result = subprocess.run(['adb', 'shell', 'ip', 'route'], capture_output=True, text=True, check=True)
-
-            # Suche nach der Zeile, die "wlan0" oder "usb0" enthält (oder den Namen des Netzwerkadapters)
-            for line in result.stdout.splitlines():
-                if "dev mlnet0" or "eth1" in line:  # <---  Anpassen, falls nötig!
-                    # Extrahiere die IP-Adresse nach "src"
-                    match = re.search(r'src (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', line)
-                    if match:
-                        ip_address = match.group(1)
-                        print(f"Magic Leap 2 IP-Adresse (über ip route): {ip_address}")
-                        return ip_address
-
-            time.sleep(1)  # Kurze Pause, bevor der Befehl erneut ausgeführt wird.
-
-        print("Timeout beim Ermitteln der IP-Adresse über ADB.")
-        return None
-
-    except subprocess.CalledProcessError as e:
-        print(f"Fehler bei der Ausführung von 'adb shell ip route': {e}, Rückgabecode: {e.returncode}, Ausgabe: {e.output}")
+            print(f"Versuche ADB Befehl: {' '.join(adb_command)}")
+            try:
+                result = subprocess.run(adb_command, capture_output=True, text=True, check=True, timeout=5)
+                for line in result.stdout.splitlines():
+                    line = line.strip()
+                    if line.startswith("inet "):
+                        ip_address = line.split()[1].split('/')[0]
+                        # Annahme: ML2 USB-Netzwerk ist oft ein spezifisches Subnetz
+                        # Du hattest 192.168.42.x, das ist gut für die Unterscheidung
+                        if ip_address.startswith("192.168.42.") or ip_address.startswith(
+                                "192.168.168."):  # Oder andere bekannte ML2 Subnetze
+                            print(f"Magic Leap 2 IP-Adresse gefunden: {ip_address}")
+                            return ip_address
+            except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
+                print(f"ADB-Fehler oder Timeout: {e}", file=sys.stderr)
+            except FileNotFoundError:
+                print("Fehler: 'adb.exe' nicht gefunden. Ist ADB im PATH?", file=sys.stderr);
+                return None
+            print("Warte 1s vor nächstem ADB Versuch...")
+            time.sleep(1)
+        print(f"Timeout ({timeout}s) beim Ermitteln der ML2 IP über ADB.");
         return None
     except Exception as e:
-        print(f"Unerwarteter Fehler bei der ADB-IP-Ermittlung: {e}")
-        return None
+        print(f"Genereller Fehler bei ADB-IP-Ermittlung: {e}", file=sys.stderr); return None
 
 
-def send_pc_ip_and_port(magic_leap_ip, port):
-    """Schreibt die IP-Adresse des PCs *und* den Port in eine Datei."""
+def send_pc_ip_and_port_to_ml(ml_ip, pc_ip_for_ml, port_for_ml):
+    # ... (Deine bestehende Funktion, stelle sicher, dass sie robust ist) ...
+    # Wichtig: Diese Funktion wird jetzt nur einmal pro ZMQ-Server-Neustart aufgerufen.
+    if not pc_ip_for_ml:
+        print("Fehler: Keine PC-IP zum Senden an ML2 vorhanden.", file=sys.stderr)
+        return False
+    temp_file = "pc_ip_port.txt"  # Eindeutigerer Name
+    target_path_on_ml = '/storage/emulated/0/Android/data/de.IMC.EyeJoystick/files/'  # Nur Verzeichnis!
+    adb_command = ['adb', 'push', temp_file, target_path_on_ml]
     try:
-        correct_interface_ip = get_correct_network_interface(magic_leap_ip)
-        if not correct_interface_ip:
-            print("Keine passende Netzwerkschnittstelle gefunden.")
-            return False
-
-        temp_file = "pc_ip.txt"
         with open(temp_file, "w") as f:
-            f.write(f"{correct_interface_ip}:{port}")  # IP und Port, getrennt durch :
-
-        subprocess.run(['adb', 'push', temp_file, '/storage/emulated/0/Android/data/de.IMC.EyeJoystick/files'], check=True)
-        print(f"PC IP-Adresse ({correct_interface_ip}) und Port ({port}) auf Magic Leap 2 kopiert.")
+            f.write(f"{pc_ip_for_ml}:{port_for_ml}")
+        print(f"Versuche: {' '.join(adb_command)}")
+        subprocess.run(adb_command, check=True, capture_output=True, timeout=10)
+        print(f"PC IP ({pc_ip_for_ml}) und Port ({port_for_ml}) auf ML2 kopiert nach {target_path_on_ml}{temp_file}.")
+        try:
+            os.remove(temp_file)
+        except OSError:
+            pass
         return True
-
-    except subprocess.CalledProcessError as e:
-        print(f"Fehler beim Kopieren der Datei (adb push): {e}")
-        return False
     except Exception as e:
-        print(f"Fehler beim Schreiben/Kopieren der IP-Adresse und des Ports: {e}")
+        print(f"Fehler beim Senden der PC IP/Port an ML2: {e}", file=sys.stderr)
+        try:
+            os.remove(temp_file)
+        except OSError:
+            pass
         return False
 
+
+# --- Hauptfunktion des ZMQ-Servers ---
 def run_server():
-    """Hauptfunktion des Servers."""
-    global magic_leap_ip, last_heartbeat, publisher_socket, subscriber_socket
+    global magic_leap_ip, last_heartbeat, publisher_socket_to_ml, subscriber_socket_from_ml
+    global wc_instance, gamepad_ctrl, context  # Zugriff auf globale Instanzen
+    global last_config_send_time  # Für den Config-Trigger
 
-    while True:  # Äußere Schleife für Server-Neustart
-        print("Server wird (neu)gestartet...")
-        subscriber_socket = None
-        publisher_socket = None
-        pc_port = None
-        # --- IP-Ermittlung (ADB + UDP Broadcast Fallback) ---
-        magic_leap_ip = get_magic_leap_ip_adb()  # Versuche zuerst ADB
-
-        if not magic_leap_ip:
-            print("Konnte Magic Leap IP nicht ermitteln. Warte 5 Sekunden...")
-            time.sleep(5)
-            continue
-
-        pc_ip = get_correct_network_interface(magic_leap_ip)
-        if not pc_ip:
-            print("Konnte eigene IP-Adresse nicht ermitteln. Warte 5 Sekunden...")
-            time.sleep(5)
-            continue
-
-        # --- Socket-Setup (innerhalb der Schleife) ---
+    # Initialisiere WheelchairControlReal und GamepadController EINMALIG hier
+    # (oder außerhalb, wenn run_server mehrmals ohne kompletten Neustart aufgerufen wird)
+    # Für dieses Beispiel: Einmalige Initialisierung beim ersten Aufruf von run_server
+    if wc_instance is None:
         try:
-            publisher_socket = context.socket(zmq.PUB)
-            # WICHTIG: Dynamischen Port für den PublisherSocket verwenden
-            pc_port = publisher_socket.bind_to_random_port(f"tcp://{pc_ip}")  # Dynamischen Port zuweisen
-            print(f"Publisher Socket (PC) gebunden an {pc_ip}:{pc_port}")
-
-            subscriber_socket = context.socket(zmq.SUB)
-
-            # --- Sende IP und Port an die Magic Leap 2 ---
-            if not send_pc_ip_and_port(magic_leap_ip, pc_port):  # Sende IP *und* Port
-                print("Konnte PC-IP und Port nicht an Magic Leap senden. Setze fort...")
-                #Kein continue, da ansonsten die Sockets nicht geschlossen werden.
-
-        except zmq.ZMQError as e:
-            print(f"Socket-Fehler: {e}")
-            if subscriber_socket: subscriber_socket.close()
-            if publisher_socket:  publisher_socket.close()
-            print(f"Fehler beim Binden/Verbinden der Sockets: {e}")
-            time.sleep(RECONNECT_INTERVAL)
-            continue
-
-        print("Warte auf READY-Signal von ML2...")
-        #start_time = time.time()
-        ready_received = False
-
-        while not ready_received: #and time.time() - start_time < INITIAL_CONNECTION_TIMEOUT:
-            try:
-                subscriber_socket.connect(f"tcp://{magic_leap_ip}:{pc_port + 1}")
-                subscriber_socket.setsockopt(zmq.SUBSCRIBE, b"READY")
-                topic, message = subscriber_socket.recv_multipart()  # 1 Sekunde Timeout
-                if topic == b"READY":
-                    print("READY empfangen!")
-                    subscriber_socket.setsockopt(zmq.SUBSCRIBE, b"heartbeat")  # Wechsle zu normalen Heartbeats
-                    subscriber_socket.setsockopt(zmq.SUBSCRIBE, b"joystickPos")
-                    subscriber_socket.setsockopt(zmq.SUBSCRIBE, b"gear")
-                    subscriber_socket.setsockopt(zmq.SUBSCRIBE, b"lights")
-                    subscriber_socket.setsockopt(zmq.SUBSCRIBE, b"warn")
-                    subscriber_socket.setsockopt(zmq.SUBSCRIBE, b"horn")
-                    subscriber_socket.setsockopt(zmq.SUBSCRIBE, b"kantelung")
-
-                    publisher_socket.send_multipart([b"gear", to_network_order(wheelchair.get_actual_gear(), 'i')])
-                    publisher_socket.send_multipart([b"lights", to_network_order(wheelchair.get_lights(), '?')])
-                    publisher_socket.send_multipart([b"warn", to_network_order(wheelchair.get_warn(), '?')])
-                    ready_received = True
-                    print(f"Subscriber (PC) verbunden mit ML2 an {magic_leap_ip}:{pc_port + 1}")
-            except zmq.error.Again:  # Timeout beim Empfangen
-                # Timeout abgelaufen, versuche erneut zu verbinden in der nächsten Iteration
-                subscriber_socket.disconnect(
-                f"tcp://{magic_leap_ip}:{pc_port + 1}")  # Muss getrennt werden, bevor es erneut verbunden werden kann.
-                continue  # Weiter zur nächsten Iteration
-            except zmq.ZMQError as e:
-                print(f"Fehler beim Warten/Verbinden (ZMQ): {e}")
-                if subscriber_socket: subscriber_socket.close()
-                if publisher_socket:  publisher_socket.close()
-                time.sleep(RECONNECT_INTERVAL)
-                break  # Innere Schleife verlassen
-            except Exception as e:
-                print(f"Unerwarteter Fehler: {e}")
-                if subscriber_socket: subscriber_socket.close()
-                if publisher_socket:  publisher_socket.close()
-                time.sleep(RECONNECT_INTERVAL)
-                break  # Innere Schleife verlassen.
-            if not ready_received:
-                print("Timeout beim Warten auf Initialen Heartbeat.")
-                if subscriber_socket: subscriber_socket.close()
-                if publisher_socket: publisher_socket.close()
-                time.sleep(RECONNECT_INTERVAL)
-                continue  # Starte den Server neu.
-
-        # --- Ende Socket-Setup ---
-
-
-        # --- Hauptkommunikationsschleife (nach Empfang von READY) ---
-        print("Beginne mit der Hauptkommunikation...")
-
-        last_heartbeat = time.time()
-        float_value = 0
-        last_heartbeat_send = 0  # Zeitpunkt des letzten Sendens.
-        last_rlink_heartbeat_send = time.time()  # NEU: Für Heartbeat ZUM Rollstuhl
-        HEARTBEAT_INTERVAL_RLINK = 0.2
-
-        while True:  # Hauptkommunikationsschleife
-            try:
-                # --- Sende Heartbeat (alle 2 Sekunden) ---
-                if time.time() - last_heartbeat_send > HEARTBEAT_INTERVAL:
-                    publisher_socket.send_multipart([b"heartbeat", b""])
-                    last_heartbeat_send = time.time()  # Aktualisiere den Zeitpunkt des Sendens
-
-                # --- Heartbeat ZUM Rollstuhl(RLink) ---
-                if time.time() - last_rlink_heartbeat_send > HEARTBEAT_INTERVAL_RLINK:
-                    if wheelchair.send_rlink_heartbeat():  # Rufe die neue Methode auf
-                        last_rlink_heartbeat_send = time.time()
-                    else:
-                        print("Konnte RLink Heartbeat nicht senden, möglicherweise Verbindungsproblem.")
-
-                if os.path.exists(JOYSTICK_VISIBILITY_TRIGGER_FILE):
-                    try:
-                        print(f"Trigger-Datei '{JOYSTICK_VISIBILITY_TRIGGER_FILE}' gefunden.")
-                        if publisher_socket and not publisher_socket.closed:
-                            print("Sende 'joystick_toggle_visibility' an ML2...")
-                            publisher_socket.send_multipart([b"joystick_toggle_visibility", b""])
-                            # Erfolgsmeldung oder weitere Verarbeitung
-                        else:
-                            print("Fehler: ZMQ Publisher-Socket nicht bereit für Joystick-Toggle.", file=sys.stderr)
-
-                        # Trigger-Datei löschen, um erneutes Ausführen zu verhindern
-                        try:
-                            os.remove(JOYSTICK_VISIBILITY_TRIGGER_FILE)
-                            print(f"Trigger-Datei '{JOYSTICK_VISIBILITY_TRIGGER_FILE}' gelöscht.")
-                        except OSError as e_remove:
-                            print(
-                                f"Fehler beim Löschen der Trigger-Datei '{JOYSTICK_VISIBILITY_TRIGGER_FILE}': {e_remove}",
-                                file=sys.stderr)
-                    except Exception as e_trigger:
-                        print(f"Fehler bei der Verarbeitung der Joystick-Sichtbarkeits-Trigger-Datei: {e_trigger}",
-                              file=sys.stderr)
-
-                if os.path.exists(CONFIG_TRIGGER_FILE):
-                    try:
-                        trigger_timestamp = os.path.getmtime(CONFIG_TRIGGER_FILE)
-                        if trigger_timestamp > last_config_send_time:
-                            with open(CONFIG_TRIGGER_FILE, 'r') as f:
-                                config_json_str = f.read()
-
-                            if config_json_str and publisher_socket:
-                                print(f"Sende ML2 Joystick Konfiguration (Trigger, Länge: {len(config_json_str)})...")
-                                publisher_socket.send_multipart([b"joystick_settings", config_json_str.encode('utf-8')])
-                                last_config_send_time = trigger_timestamp
-                                try:
-                                    os.remove(CONFIG_TRIGGER_FILE)
-                                    print("Trigger-Datei für ML2-Konfig gelöscht.")
-                                except OSError as e_remove:
-                                    print(f"Fehler beim Löschen der Trigger-Datei '{CONFIG_TRIGGER_FILE}': {e_remove}")
-                            elif not config_json_str:  # Falls Datei leer ist
-                                print("Trigger-Datei ist leer, lösche sie.")
-                                try:
-                                    os.remove(CONFIG_TRIGGER_FILE)
-                                except OSError as e_remove:
-                                    print(
-                                        f"Fehler beim Löschen der leeren Trigger-Datei '{CONFIG_TRIGGER_FILE}': {e_remove}")
-                    except FileNotFoundError:
-                        pass
-                    except Exception as e_config:
-                        print(f"Fehler beim Lesen/Senden der ML2 Joystick Konfiguration: {e_config}")
-
-                # Sende Testnachrichten (Beispiele)
-                speed = wheelchair.get_wheelchair_speed()
-                float_value = to_network_order(speed, 'f')
-                publisher_socket.send_multipart([b"topic_float", float_value])
-                #publisher_socket.send_multipart([b"topic_string", string_value.encode()])
-
-                # Empfange Nachrichten (mit Timeout)
-                if subscriber_socket.poll(1000):  # 1 Sekunde Timeout
-                    topic, message = subscriber_socket.recv_multipart()
-
-                    if topic == b"heartbeat":
-                        last_heartbeat = time.time()
-                        print("Heartbeat empfangen")
-                    elif topic == b"joystickPos":
-                        x = from_network_order(message[0:4], 'f')
-                        y = from_network_order(message[4:8], 'f')
-
-                        direction = (x, y)
-                        wheelchair.set_direction(direction)
-                    elif topic == b"gear":
-                        received_value = from_network_order(message, '?')
-                        actual_gear = wheelchair.set_gear(received_value)
-                        publisher_socket.send_multipart([b"gear", to_network_order(actual_gear, 'i')])
-                    elif topic == b"lights":
-                        received_value = from_network_order(message, '?')
-                        wheelchair.set_lights()
-                        publisher_socket.send_multipart([b"lights", to_network_order(wheelchair.get_lights(), '?')])
-                        print("lights: " + str(wheelchair.get_lights()))
-                    elif topic == b"warn":
-                        received_value = from_network_order(message, '?')
-                        wheelchair.set_warn()
-                        publisher_socket.send_multipart([b"warn", to_network_order(wheelchair.get_warn(), '?')])
-                        print("warn: " + str(wheelchair.get_warn()))
-                    elif topic == b"horn":
-                        received_value = from_network_order(message, '?')
-                        wheelchair.on_horn(received_value)
-                    elif topic == b"kantelung":
-                        received_value = from_network_order(message, '?')
-                        wheelchair.on_kantelung(received_value)
-                        publisher_socket.send_multipart([b"kantelung", to_network_order(wheelchair.get_kantelung(), '?')])
-                    else:
-                        print(f"Unerwartetes Topic: {topic}")  # Sollte nicht passieren
-
-                # Heartbeat-Timeout-Überprüfung
-                if time.time() - last_heartbeat > RECONNECT_INTERVAL:
-                    print("Heartbeat-Timeout!")
-                    break  # Beende die Hauptschleife
-
-            except zmq.ZMQError as e:
-                print(f"Fehler in der Kommunikation: {e}")
-                break  # Beende die Hauptschleife
-            except Exception as e:
-                print(f"Unerwarteter Fehler: {e}")
-                break # Beende die Hauptschleife.
-
-        # --- Aufräumen beim Neustart ---
-        print("Server wird in Kürze neu gestartet...")
-        try:
-            if subscriber_socket:
-                subscriber_socket.close()
-            if publisher_socket:
-                publisher_socket.close()
+            print("Initialisiere WheelchairControlReal für den Server...")
+            wc_instance = WheelchairControlReal(device_index=0)
+        except ConnectionError as e:
+            print(f"FEHLER: WheelchairControlReal konnte nicht initialisiert werden: {e}", file=sys.stderr)
+            return  # Beendet run_server, wenn Rollstuhl nicht geht
         except Exception as e:
-             print(f"Fehler beim Schließen der Sockets: {e}")
-        time.sleep(RECONNECT_INTERVAL)
+            print(f"Allgemeiner Fehler bei WC Init: {e}", file=sys.stderr)
+            return
+
+    if gamepad_ctrl is None:
+        try:
+            print("Initialisiere GamepadController...")
+            gamepad_ctrl = GamepadController(wc_instance)  # Übergib wc_instance
+            if not gamepad_ctrl.start():
+                print("WARNUNG: GamepadController konnte nicht gestartet werden.", file=sys.stderr)
+                gamepad_ctrl = None  # Kein Gamepad, aber Server läuft weiter
+            else:
+                print("GamepadController erfolgreich gestartet.")
+        except Exception as e:
+            print(f"FEHLER bei Initialisierung des GamepadControllers: {e}", file=sys.stderr)
+            gamepad_ctrl = None
+
+    # --- Äußere Schleife für ZMQ-Server-Neustart (Verbindung zur ML2) ---
+    while True:
+        print("\n" + "=" * 30 + " ZMQ-SERVERTEIL (NEU)START " + "=" * 30)
+        # Sockets für diesen Durchlauf zurücksetzen
+        current_publisher_socket = None
+        current_subscriber_socket = None
+        pc_port_for_ml = None
+
+        # --- IP-Ermittlung und Socket-Setup für ML2 ---
+        magic_leap_ip = get_magic_leap_ip_adb()
+        if not magic_leap_ip:
+            print(f"Konnte ML2 IP nicht ermitteln. Warte {RECONNECT_INTERVAL_ZMQ}s...")
+            time.sleep(RECONNECT_INTERVAL_ZMQ)
+            continue
+
+        pc_ip_for_ml = get_correct_network_interface(magic_leap_ip)
+        if not pc_ip_for_ml:
+            print(f"Konnte eigene passende IP nicht ermitteln. Warte {RECONNECT_INTERVAL_ZMQ}s...")
+            time.sleep(RECONNECT_INTERVAL_ZMQ)
+            continue
+
+        try:
+            current_publisher_socket = context.socket(zmq.PUB)
+            pc_port_for_ml = current_publisher_socket.bind_to_random_port(f"tcp://{pc_ip_for_ml}")
+            publisher_socket_to_ml = current_publisher_socket  # Globalen Socket aktualisieren
+            print(f"ZMQ Publisher (an ML2) gebunden an tcp://{pc_ip_for_ml}:{pc_port_for_ml}")
+
+            current_subscriber_socket = context.socket(zmq.SUB)
+            current_subscriber_socket.setsockopt(zmq.RCVTIMEO, 5000)  # 5s Timeout für recv
+            subscriber_socket_from_ml = current_subscriber_socket  # Globalen Socket aktualisieren
+
+            send_pc_ip_and_port_to_ml(magic_leap_ip, pc_ip_for_ml, pc_port_for_ml)
+
+        except Exception as e:
+            print(f"Fehler im ZMQ Socket Setup: {e}", file=sys.stderr)
+            if current_publisher_socket: current_publisher_socket.close(linger=0)
+            if current_subscriber_socket: current_subscriber_socket.close(linger=0)
+            publisher_socket_to_ml = None;
+            subscriber_socket_from_ml = None
+            time.sleep(RECONNECT_INTERVAL_ZMQ)
+            continue
+
+        # --- Warten auf READY von ML2 ---
+        print(f"Warte auf READY von ML2 an tcp://{magic_leap_ip}:{pc_port_for_ml + 1}...")
+        ready_received = False
+        try:
+            subscriber_socket_from_ml.connect(f"tcp://{magic_leap_ip}:{pc_port_for_ml + 1}")
+            subscriber_socket_from_ml.setsockopt(zmq.SUBSCRIBE, b"READY")
+
+            # Warte auf READY mit Timeout (RCVTIMEO ist gesetzt)
+            topic, _ = subscriber_socket_from_ml.recv_multipart()  # Timeout von RCVTIMEO wird hier wirksam
+            if topic == b"READY":
+                print("READY von ML2 empfangen!")
+                subscriber_socket_from_ml.setsockopt(zmq.UNSUBSCRIBE, b"READY")  # Wichtig!
+                # Weitere Topics abonnieren
+                subscriber_socket_from_ml.setsockopt(zmq.SUBSCRIBE, b"heartbeat")
+                subscriber_socket_from_ml.setsockopt(zmq.SUBSCRIBE, b"joystickPos")
+                subscriber_socket_from_ml.setsockopt(zmq.SUBSCRIBE, b"gear")  # Für ML-gesteuerte Gangwechsel
+                subscriber_socket_from_ml.setsockopt(zmq.SUBSCRIBE, b"lights")
+                subscriber_socket_from_ml.setsockopt(zmq.SUBSCRIBE, b"warn")
+                subscriber_socket_from_ml.setsockopt(zmq.SUBSCRIBE, b"horn")
+                subscriber_socket_from_ml.setsockopt(zmq.SUBSCRIBE, b"kantelung")
+                ready_received = True
+                print(f"ZMQ Subscriber (von ML2) verbunden mit tcp://{magic_leap_ip}:{pc_port_for_ml + 1}")
+                # Initiale Zustände an ML2 senden
+                if publisher_socket_to_ml and wc_instance:
+                    publisher_socket_to_ml.send_multipart(
+                        [b"gear", to_network_order(wc_instance.get_actual_gear(), 'i')])
+                    publisher_socket_to_ml.send_multipart([b"lights", to_network_order(wc_instance.get_lights(), '?')])
+                    publisher_socket_to_ml.send_multipart([b"warn", to_network_order(wc_instance.get_warn(), '?')])
+                    publisher_socket_to_ml.send_multipart(
+                        [b"kantelung", to_network_order(wc_instance.get_kantelung(), '?')])
+                    if gamepad_ctrl:  # Sende auch Gamepad-Modi, falls aktiv
+                        publisher_socket_to_ml.send_multipart(
+                            [b"height_mode", to_network_order(gamepad_ctrl._gp_height_active, '?')])
 
 
+        except zmq.error.Again:  # Timeout
+            print("Timeout beim Warten auf READY von ML2.")
+        except Exception as e:
+            print(f"Fehler beim Warten auf READY: {e}", file=sys.stderr)
+
+        if not ready_received:
+            print("Setup der ML2-Verbindung nicht erfolgreich, starte ZMQ-Teil neu...")
+            if subscriber_socket_from_ml: subscriber_socket_from_ml.close(linger=0); subscriber_socket_from_ml = None
+            if publisher_socket_to_ml:  publisher_socket_to_ml.close(linger=0);  publisher_socket_to_ml = None
+            time.sleep(RECONNECT_INTERVAL_ZMQ)
+            continue  # Neustart der äußeren ZMQ-Schleife
+
+        # --- Hauptkommunikationsschleife (ZMQ mit ML2) ---
+        print("Beginne Hauptkommunikation mit ML2...")
+        last_heartbeat_received_from_ml = time.time()
+        last_status_send_to_ml_time = 0
+
+        while True:  # Innere ZMQ-Kommunikationsschleife
+            current_time = time.time()
+            try:
+                # --- Daten an ML2 senden (z.B. Geschwindigkeit, Status) ---
+                if publisher_socket_to_ml and not publisher_socket_to_ml.closed and \
+                        current_time - last_status_send_to_ml_time > 0.5:  # Sende Status alle 0.5s
+                    if wc_instance:
+                        speed = wc_instance.get_wheelchair_speed()
+                        publisher_socket_to_ml.send_multipart([b"topic_float", to_network_order(speed, 'f')])
+                        # Weitere Status-Updates an ML2 hier senden, falls nötig
+                    last_status_send_to_ml_time = current_time
+
+                # --- Nachrichten von ML2 empfangen ---
+                try:
+                    if subscriber_socket_from_ml and not subscriber_socket_from_ml.closed and \
+                            subscriber_socket_from_ml.poll(timeout=10):  # Kurzer Poll, um nicht zu blockieren
+                        topic, message = subscriber_socket_from_ml.recv_multipart()
+
+                        if topic == b"heartbeat":
+                            last_heartbeat_received_from_ml = time.time()
+                        elif topic == b"joystickPos":
+                            # Nur verarbeiten, wenn KEIN Gamepad aktiv ist oder Gamepad Fehler hat
+                            if not gamepad_ctrl or gamepad_ctrl.quit_event.is_set():
+                                x = from_network_order(message[0:4], 'f')
+                                y = from_network_order(message[4:8], 'f')
+                                if wc_instance: wc_instance.set_direction((x, y))
+                            # else: print("Gamepad aktiv, ignoriere ML2 Joystick.")
+                        elif topic == b"gear":
+                            if wc_instance:
+                                received_value = from_network_order(message, '?')
+                                actual_gear = wc_instance.set_gear(received_value)
+                                if publisher_socket_to_ml: publisher_socket_to_ml.send_multipart(
+                                    [b"gear", to_network_order(actual_gear, 'i')])
+                        elif topic == b"lights":
+                            if wc_instance:
+                                wc_instance.set_lights()  # Toggle
+                                if publisher_socket_to_ml: publisher_socket_to_ml.send_multipart(
+                                    [b"lights", to_network_order(wc_instance.get_lights(), '?')])
+                        elif topic == b"warn":
+                            if wc_instance:
+                                wc_instance.set_warn()  # Toggle
+                                if publisher_socket_to_ml: publisher_socket_to_ml.send_multipart(
+                                    [b"warn", to_network_order(wc_instance.get_warn(), '?')])
+                        elif topic == b"horn":
+                            if wc_instance: wc_instance.on_horn(from_network_order(message, '?'))
+                        elif topic == b"kantelung":
+                            # ML2 kann den Kantelungsmodus umschalten, wenn Gamepad nicht aktiv
+                            if wc_instance and (not gamepad_ctrl or gamepad_ctrl.quit_event.is_set()):
+                                received_value = from_network_order(message, '?')
+                                wc_instance.on_kantelung(received_value)
+                                if publisher_socket_to_ml: publisher_socket_to_ml.send_multipart(
+                                    [b"kantelung", to_network_order(wc_instance.get_kantelung(), '?')])
+                        else:
+                            print(f"Unbekanntes Topic von ML2: {topic}")
+                except zmq.error.Again:
+                    pass  # Timeout beim Pollen ist normal
+
+                # --- Trigger-Dateien prüfen (für Befehle vom Webinterface) ---
+                if publisher_socket_to_ml and not publisher_socket_to_ml.closed:
+                    if os.path.exists(JOYSTICK_VISIBILITY_TRIGGER_FILE):
+                        try:
+                            print(f"Trigger '{JOYSTICK_VISIBILITY_TRIGGER_FILE}' gefunden.")
+                            publisher_socket_to_ml.send_multipart([b"joystick_toggle_visibility", b"toggle"])
+                            print("-> joystick_toggle_visibility an ML2 gesendet.")
+                            os.remove(JOYSTICK_VISIBILITY_TRIGGER_FILE)
+                        except Exception as e_trig:
+                            print(f"Fehler Trigger JoystickVis: {e_trig}", file=sys.stderr)
+
+                    if os.path.exists(CONFIG_TRIGGER_FILE):  # Für ML2 Joystick Config
+                        try:
+                            trigger_timestamp = os.path.getmtime(CONFIG_TRIGGER_FILE)
+                            if trigger_timestamp > last_config_send_time:
+                                with open(CONFIG_TRIGGER_FILE, 'r') as f:
+                                    config_json_str = f.read()
+                                if config_json_str:
+                                    print(f"Sende ML2 Joystick Konfiguration (Trigger)...")
+                                    publisher_socket_to_ml.send_multipart(
+                                        [b"joystick_settings", config_json_str.encode('utf-8')])
+                                    last_config_send_time = trigger_timestamp
+                                os.remove(CONFIG_TRIGGER_FILE)
+                        except Exception as e_cfg_trig:
+                            print(f"Fehler Trigger Config: {e_cfg_trig}", file=sys.stderr)
+
+                # --- Heartbeat-Timeout von ML2 prüfen ---
+                if current_time - last_heartbeat_received_from_ml > RECONNECT_INTERVAL_ZMQ * 1.5:
+                    print(
+                        f"Heartbeat-Timeout von ML2! Letzter Empfang vor {current_time - last_heartbeat_received_from_ml:.1f}s.")
+                    break  # Innere Schleife verlassen -> ZMQ-Neustart
+
+                # --- Prüfen, ob Gamepad-Controller beendet wurde ---
+                if gamepad_ctrl and gamepad_ctrl.quit_event.is_set():
+                    print("Gamepad-Controller hat Beenden signalisiert. Starte ZMQ-Teil neu (oder beende Server).")
+                    # Hier könntest du entscheiden, ob der Server ganz stoppt oder nur ZMQ neu startet
+                    # und versucht, den Gamepad-Controller neu zu initialisieren.
+                    # Fürs Erste: Nur ZMQ-Teil neu starten.
+                    break  # Innere Schleife verlassen
+
+                time.sleep(0.01)  # Sehr kurze Pause, da Gamepad-Loop eigene Pause hat
+
+            except zmq.ZMQError as e:
+                print(f"ZMQ-Fehler in Kommunikation: {e}"); break
+            except Exception as e:
+                print(f"Unerwarteter Fehler in ZMQ-Loop: {e}"); import traceback; traceback.print_exc(); break
+
+        # --- Aufräumen vor ZMQ-Neustart ---
+        print("ZMQ Kommunikationsschleife beendet. Starte ZMQ-Teil neu...")
+        if subscriber_socket_from_ml: subscriber_socket_from_ml.close(linger=0); subscriber_socket_from_ml = None
+        if publisher_socket_to_ml:  publisher_socket_to_ml.close(linger=0);  publisher_socket_to_ml = None
+        time.sleep(RECONNECT_INTERVAL_ZMQ)
+
+
+# --- Programmstart ---
 if __name__ == "__main__":
-    run_server()
+    # Globale Instanz für den ZMQ-Kontext
+    # context wird schon global oben erstellt: context = zmq.Context.instance()
+
+    try:
+        run_server()  # Startet die Hauptlogik mit der äußeren Schleife
+    except KeyboardInterrupt:
+        print("\nCtrl+C erkannt. Beende Hauptserver...")
+    finally:
+        print("Beende alle Komponenten des Hauptservers...")
+        if gamepad_ctrl:  # gamepad_ctrl ist jetzt global (oder in run_server deklariert)
+            gamepad_ctrl.stop()
+        if wc_instance:  # wc_instance ist jetzt global (oder in run_server deklariert)
+            wc_instance.shutdown()
+
+        # Sockets werden in run_server() Schleife geschlossen oder hier als Fallback
+        if publisher_socket_to_ml and not publisher_socket_to_ml.closed:
+            publisher_socket_to_ml.close(linger=0)
+        if subscriber_socket_from_ml and not subscriber_socket_from_ml.closed:
+            subscriber_socket_from_ml.close(linger=0)
+
+        if not context.closed:
+            print("Schließe globalen ZeroMQ-Kontext.")
+            context.term()
+        print("Hauptserver beendet.")
