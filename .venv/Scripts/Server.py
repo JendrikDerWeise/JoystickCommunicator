@@ -100,35 +100,58 @@ def get_correct_network_interface(target_ip_for_subnet_check):
 
 
 def get_magic_leap_ip_adb():
-    adb_command = ['adb', 'shell', 'ip', 'addr']
+    """Ermittelt die IP-Adresse der Magic Leap 2 über ADB (zuverlässiger)."""
     try:
-        start_time = time.time();
-        timeout = 15
+        start_time = time.time()
+        timeout = 10  # Dein ursprünglicher Timeout
+
         while time.time() - start_time < timeout:
-            print(f"Versuche ADB Befehl: {' '.join(adb_command)}")
-            try:
-                result = subprocess.run(adb_command, capture_output=True, text=True, check=True, timeout=5)
-                for line in result.stdout.splitlines():
-                    line = line.strip()
-                    if line.startswith("dev mlnet0") or line.startswith("eth1"):
-                        ip_address = line.split()[1].split('/')[0]
-                        # Annahme: ML2 USB-Netzwerk ist oft ein spezifisches Subnetz
-                        # Du hattest 192.168.42.x, das ist gut für die Unterscheidung
-                        if ip_address.startswith("192.168.42.") or ip_address.startswith(
-                                "192.168.168."):  # Oder andere bekannte ML2 Subnetze
-                            print(f"Magic Leap 2 IP-Adresse gefunden: {ip_address}")
+            # 'adb shell ip route' gibt die Routing-Tabelle aus.
+            # Die Ausgabe ist je nach Android-Version und Gerät unterschiedlich.
+            # Das folgende Kommando funktioniert auf der ML2 und filtert die Ausgabe.
+            print("Versuche ADB Befehl: adb shell ip route")  # Info-Ausgabe
+            result = subprocess.run(['adb', 'shell', 'ip', 'route'], capture_output=True, text=True, check=True,
+                                    timeout=5)  # Timeout für den Befehl selbst
+
+            # Suche nach der Zeile, die "dev mlnet0" oder "eth1" enthält (oder den Namen des Netzwerkadapters)
+            # Deine ursprüngliche Logik: if "dev mlnet0" or "eth1" in line:
+            # Das ist logisch fehlerhaft, da "dev mlnet0" immer True ist, wenn es nicht leer ist.
+            # Korrekte Logik wäre: if "dev mlnet0" in line or "eth1" in line:
+            # Aber wir können es noch robuster machen, indem wir nach "src" suchen und dann prüfen, ob es eine typische ML2-IP ist.
+            for line in result.stdout.splitlines():
+                # Ursprüngliche Bedingung, angepasst für Korrektheit:
+                if "dev mlnet0" in line or "dev eth1" in line or "dev wlan0" in line or "dev usb0" in line:  # Füge häufige Interface-Namen hinzu
+                    match = re.search(r'src (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', line)
+                    if match:
+                        ip_address = match.group(1)
+                        # Zusätzliche Prüfung, ob die IP plausibel für ML2 ist (optional, aber gut)
+                        if ip_address.startswith("192.168.42.") or ip_address.startswith("192.168.168."):
+                            print(f"Magic Leap 2 IP-Adresse (über ip route, src): {ip_address}")
                             return ip_address
-            except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
-                print(f"ADB-Fehler oder Timeout: {e}", file=sys.stderr)
-            except FileNotFoundError:
-                print("Fehler: 'adb.exe' nicht gefunden. Ist ADB im PATH?", file=sys.stderr);
-                return None
+                        else:
+                            print(
+                                f"  Gefundene 'src' IP {ip_address} scheint nicht zum erwarteten ML2-Subnetz zu gehören, prüfe weiter...")
+
             print("Warte 1s vor nächstem ADB Versuch...")
-            time.sleep(1)
-        print(f"Timeout ({timeout}s) beim Ermitteln der ML2 IP über ADB.");
+            time.sleep(1)  # Kurze Pause, bevor der Befehl erneut ausgeführt wird.
+
+        print(f"Timeout ({timeout}s) beim Ermitteln der IP-Adresse über ADB.")
+        return None
+
+    except subprocess.CalledProcessError as e:
+        print(f"Fehler bei der Ausführung von 'adb shell ip route': {e}, Rückgabecode: {e.returncode}", file=sys.stderr)
+        if e.output: print(f"ADB Output: {e.output}", file=sys.stderr)
+        if e.stderr: print(f"ADB Stderr: {e.stderr}", file=sys.stderr)
+        return None
+    except subprocess.TimeoutExpired:
+        print("Timeout bei Ausführung von 'adb shell ip route'.", file=sys.stderr)
+        return None
+    except FileNotFoundError:
+        print("Fehler: 'adb' Kommando nicht gefunden. Ist ADB installiert und im PATH?", file=sys.stderr)
         return None
     except Exception as e:
-        print(f"Genereller Fehler bei ADB-IP-Ermittlung: {e}", file=sys.stderr); return None
+        print(f"Unerwarteter Fehler bei der ADB-IP-Ermittlung: {e}", file=sys.stderr)
+        return None
 
 
 def send_pc_ip_and_port_to_ml(ml_ip, pc_ip_for_ml, port_for_ml):
