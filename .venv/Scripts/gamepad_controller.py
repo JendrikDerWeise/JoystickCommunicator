@@ -31,19 +31,19 @@ TRIGGER_THRESHOLD = 0.1  # Normalisierter Wert (0.0-1.0)
 
 # --- Gamepad Button/Achsen Mappings (Beispiel Xbox) ---
 # Achsen
-ABS_LEFT_X = ecodes.ABS_X
-ABS_LEFT_Y = ecodes.ABS_Y
-ABS_RIGHT_X = ecodes.ABS_RX
-ABS_RIGHT_Y = ecodes.ABS_RY
-ABS_LT = getattr(ecodes, 'ABS_LT', ecodes.ABS_Z)
-ABS_RT = getattr(ecodes, 'ABS_RT', ecodes.ABS_RZ)
-# Knöpfe (Beispiele, passe an, was du nutzen willst)
-BTN_A_BUTTON = ecodes.BTN_A  # Hupe (Toggle)
-BTN_X_BUTTON = ecodes.BTN_X  # Licht (Toggle)
-BTN_Y_BUTTON = ecodes.BTN_Y  # Warnblinker (Toggle)
-BTN_LB_BUMPER = ecodes.BTN_TL  # Kantelungsmodus (Toggle)
-BTN_RB_BUMPER = ecodes.BTN_TR  # Sitzhöhenmodus (Toggle)
-BTN_START_BUTTON = ecodes.BTN_START  # Beenden
+ABS_LEFT_X = ecodes.ABS_X    # Code 0
+ABS_LEFT_Y = ecodes.ABS_Y    # Code 1
+ABS_RIGHT_X = ecodes.ABS_RX   # Code 3 (in evtest als ABS_RX, Code 3)
+ABS_RIGHT_Y = ecodes.ABS_RY   # Code 4 (in evtest als ABS_RY, Code 4)
+ABS_LT = ecodes.ABS_Z      # Code 2 (Linker Trigger analog)
+ABS_RT = ecodes.ABS_RZ      # Code 5 (Rechter Trigger analog)
+
+BTN_HORN = ecodes.BTN_SOUTH    # Kreuz für Hupe
+BTN_LIGHTS = ecodes.BTN_WEST   # Viereck für Licht
+BTN_WARN = ecodes.BTN_NORTH    # Dreieck für Warnblinker
+BTN_KANTELUNG_MODE = ecodes.BTN_TL # L1 für Kantelungsmodus
+BTN_HEIGHT_MODE = ecodes.BTN_TR    # R1 für Höhenmodus
+BTN_QUIT_APP = ecodes.BTN_START  # Options-Taste zum Beenden (oder BTN_MODE)
 
 
 class GamepadController:
