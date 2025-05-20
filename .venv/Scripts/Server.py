@@ -48,7 +48,7 @@ gamepad_ctrl: GamepadController | None = None
 # WheelchairControlReal wird global initialisiert, wie in deinem Skript
 # Stelle sicher, dass WheelchairControlReal keine Exceptions wirft, die hier nicht gefangen werden
 try:
-    wheelchair = WheelchairControlReal()
+    wc_instance = WheelchairControlReal()
 except Exception as e_wc:
     print(f"FATAL: Fehler bei der Initialisierung von WheelchairControlReal: {e_wc}", file=sys.stderr)
     print("Der Server kann ohne funktionierende Rollstuhlsteuerung nicht sinnvoll starten.")
