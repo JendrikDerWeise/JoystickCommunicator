@@ -48,7 +48,7 @@ gamepad_ctrl: GamepadController | None = None
 # WheelchairControlReal wird global initialisiert, wie in deinem Skript
 # Stelle sicher, dass WheelchairControlReal keine Exceptions wirft, die hier nicht gefangen werden
 try:
-    wc_instance = WheelchairControlReal()
+    wheelchair = WheelchairControlReal()
 except Exception as e_wc:
     print(f"FATAL: Fehler bei der Initialisierung von WheelchairControlReal: {e_wc}", file=sys.stderr)
     print("Der Server kann ohne funktionierende Rollstuhlsteuerung nicht sinnvoll starten.")
@@ -285,7 +285,7 @@ def run_server():
                 subscriber_socket.setsockopt(zmq.SUBSCRIBE, b"horn")
                 subscriber_socket.setsockopt(zmq.SUBSCRIBE, b"kantelung")
 
-                #publisher_socket.send_multipart([b"gear", to_network_order(wheelchair.get_actual_gear(), 'i')])
+                publisher_socket.send_multipart([b"gear", to_network_order(wheelchair.get_actual_gear(), 'i')])
                 publisher_socket.send_multipart([b"lights", to_network_order(wheelchair.get_lights(), '?')])
                 publisher_socket.send_multipart([b"warn", to_network_order(wheelchair.get_warn(), '?')])
                 # Sende auch Kantelungs- und Höhenmodus-Status, falls Gamepad aktiv
@@ -319,8 +319,6 @@ def run_server():
         print("Beginne mit der Hauptkommunikation...")
         last_heartbeat = time.time()  # Zeit des letzten *empfangenen* Heartbeats von ML2
         last_heartbeat_send_to_ml = 0  # Zeitpunkt des letzten Sendens eines Heartbeats AN ML2
-        # last_rlink_heartbeat_send = time.time() # Wird jetzt vom GamepadController gehandhabt
-        # HEARTBEAT_INTERVAL_RLINK = 0.2 # Wird jetzt vom GamepadController gehandhabt
 
         while True:  # Hauptkommunikationsschleife
             try:
@@ -332,20 +330,11 @@ def run_server():
                     last_heartbeat_send_to_ml = current_time
 
                 # --- Heartbeat ZUM Rollstuhl(RLink) ---
-                # Wird jetzt vom GamepadController in seinem eigenen Thread gemacht,
-                # wenn gamepad_ctrl aktiv ist.
-                # Wenn KEIN Gamepad aktiv ist, müssen wir es hier tun.
-                if wc_instance and (not gamepad_ctrl or gamepad_ctrl.quit_event.is_set()):
-                    # Rufe die synchrone Heartbeat-Methode von WheelchairControlReal
-                    # Diese Methode existiert in deiner WheelchairControlReal Klasse
-                    # (aus Antwort #47, send_rlink_heartbeat)
-                    # Stelle sicher, dass sie `heartbeat()` heißt oder passe den Aufruf an.
-                    # Annahme: Sie heißt jetzt `heartbeat()`
-                    if hasattr(wc_instance, 'heartbeat'):
-                        wc_instance.heartbeat()
-                    elif hasattr(wc_instance, 'send_rlink_heartbeat'):  # Fallback zum alten Namen
-                        wc_instance.send_rlink_heartbeat()
-                    # else: print("WARNUNG: Keine Heartbeat-Methode in wc_instance gefunden")
+                if wheelchair and (not gamepad_ctrl or gamepad_ctrl.quit_event.is_set()):
+                    if hasattr(wheelchair, 'heartbeat'):
+                        wheelchair.heartbeat()
+                    elif hasattr(wheelchair, 'send_rlink_heartbeat'):
+                        wheelchair.send_rlink_heartbeat()
 
                 # --- Trigger-Dateien prüfen ---
                 if publisher_socket and not publisher_socket.closed:
@@ -376,7 +365,7 @@ def run_server():
 
                 # --- Daten an ML2 senden (z.B. Geschwindigkeit) ---
                 if publisher_socket and not publisher_socket.closed:
-                    speed = wc_instance.get_wheelchair_speed()
+                    speed = wheelchair.get_wheelchair_speed()
                     float_value = to_network_order(speed, 'f')
                     publisher_socket.send_multipart([b"topic_float", float_value])
 
@@ -388,40 +377,32 @@ def run_server():
 
                         if topic == b"heartbeat":
                             last_heartbeat = time.time()  # Zeit des letzten EMPFANGENEN Heartbeats
-                            # print("Heartbeat von ML2 empfangen") # Optional
                         elif topic == b"joystickPos":
-                            # Nur verarbeiten, wenn KEIN Gamepad aktiv ist
                             if not gamepad_ctrl or gamepad_ctrl.quit_event.is_set():
                                 x = from_network_order(message[0:4], 'f')
                                 y = from_network_order(message[4:8], 'f')
-                                wc_instance.set_direction((x, y))
-                            # else:
-                            #    print("Gamepad aktiv, ignoriere ML2 Joystick-Daten.")
+                                wheelchair.set_direction((x, y))
                         elif topic == b"gear":
-                            # Gangwechsel von ML2, auch wenn Gamepad aktiv ist?
-                            # Oder soll Gamepad Vorrang haben? Hier: ML2 kann Gang ändern.
                             received_value = from_network_order(message, '?')
-                            actual_gear = wc_instance.set_gear(received_value)
+                            actual_gear = wheelchair.set_gear(received_value)
                             if publisher_socket: publisher_socket.send_multipart(
                                 [b"gear", to_network_order(actual_gear, 'i')])
                         elif topic == b"lights":
-                            # ML2 sendet nur Trigger, WheelchairControlReal toggelt
-                            wc_instance.set_lights()
+                            wheelchair.set_lights()
                             if publisher_socket: publisher_socket.send_multipart(
-                                [b"lights", to_network_order(wc_instance.get_lights(), '?')])
+                                [b"lights", to_network_order(wheelchair.get_lights(), '?')])
                         elif topic == b"warn":
-                            wc_instance.set_warn()
+                            wheelchair.set_warn()
                             if publisher_socket: publisher_socket.send_multipart(
-                                [b"warn", to_network_order(wc_instance.get_warn(), '?')])
+                                [b"warn", to_network_order(wheelchair.get_warn(), '?')])
                         elif topic == b"horn":
-                            wc_instance.on_horn(from_network_order(message, '?'))
+                            wheelchair.on_horn(from_network_order(message, '?'))
                         elif topic == b"kantelung":
-                            # ML2 kann Kantelungsmodus umschalten, wenn Gamepad nicht aktiv
                             if not gamepad_ctrl or gamepad_ctrl.quit_event.is_set():
                                 received_value = from_network_order(message, '?')
-                                wc_instance.on_kantelung(received_value)
+                                wheelchair.on_kantelung(received_value)
                                 if publisher_socket: publisher_socket.send_multipart(
-                                    [b"kantelung", to_network_order(wc_instance.get_kantelung(), '?')])
+                                    [b"kantelung", to_network_order(wheelchair.get_kantelung(), '?')])
                         else:
                             print(f"Unerwartetes Topic von ML2: {topic}")
                 except zmq.error.Again:
@@ -435,13 +416,11 @@ def run_server():
                 # --- Prüfen, ob Gamepad-Controller beendet wurde ---
                 if gamepad_ctrl and gamepad_ctrl.quit_event.is_set():
                     print("Gamepad-Controller hat Beenden signalisiert. Starte ZMQ-Teil neu.")
-                    # Hier könntest du versuchen, den Gamepad-Controller neu zu starten
-                    # oder den Server ganz zu beenden. Fürs Erste: ZMQ-Neustart.
-                    gamepad_ctrl.stop()  # Stoppe den alten Controller
-                    gamepad_ctrl = None  # Setze zurück, damit er oben neu initialisiert wird
-                    break  # Innere Schleife verlassen
+                    gamepad_ctrl.stop()
+                    gamepad_ctrl = None
+                    break
 
-                time.sleep(0.01)  # Sehr kurze Pause, um CPU zu schonen
+                time.sleep(0.01)
 
             except zmq.ZMQError as e:
                 print(f"Fehler in der ZMQ-Kommunikation: {e}")
@@ -469,11 +448,14 @@ if __name__ == "__main__":
         print("Beende alle Komponenten des Hauptservers...")
         if gamepad_ctrl:  # gamepad_ctrl ist global
             gamepad_ctrl.stop()
-        if wc_instance:  # wc_instance ist global
-            wc_instance.shutdown()
+        # --- KORREKTUR HIER ---
+        if wheelchair:  # Prüfe die korrekte globale Variable 'wheelchair'
+            wheelchair.shutdown()
+        # --- ENDE KORREKTUR ---
 
-        # Globale Sockets hier schließen, falls sie noch offen sind
-        # (obwohl sie in der Schleife schon geschlossen werden sollten)
+        # Globale Sockets hier schließen, da sie in der Schleife neu zugewiesen werden
+        # und die alten Referenzen sonst offen bleiben könnten, wenn run_server()
+        # durch eine Exception im äußeren Teil abbricht.
         if publisher_socket and not publisher_socket.closed:
             print("Schließe globalen Publisher Socket...")
             publisher_socket.close(linger=0)
