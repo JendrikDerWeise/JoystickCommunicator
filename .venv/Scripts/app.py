@@ -5,6 +5,7 @@ import subprocess
 import os
 import json
 import sys
+import time
 
 # --- Konfiguration für Rollstuhl-Pi-Parameter ---
 CONFIG_FILE_PI = "wheelchair_config.json"  # Für Pi-seitige Rollstuhlparameter
