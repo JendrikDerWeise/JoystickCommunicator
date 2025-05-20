@@ -84,6 +84,15 @@ class GamepadController:
         device_path = self._find_gamepad()
         if not device_path:
             self.quit_event.set();
+            abs_capabilities_list = self.gamepad_device.capabilities().get(ecodes.EV_ABS, [])
+            if not isinstance(abs_capabilities_list, list):  # Sicherheitscheck
+                print(f"WARNUNG: Unerwarteter Typ für ABS Capabilities: {type(abs_capabilities_list)}", file=sys.stderr)
+                abs_capabilities_list = []  # Fallback auf leere Liste
+
+            self.min_max_axis_vals = {
+                code: (info.min, info.max)
+                for code, info in abs_capabilities_list  # Iteriere direkt über die Liste der Tupel
+            }
             print("Gamepad event thread finished (no device).");
             return
         try:
