@@ -144,7 +144,8 @@ class GamepadController:
             return None
 
         print(f"Gefundene Event-Geräte: {device_paths}")
-        potential_gamepads = []
+
+        candidate_devices = []
 
         for path in device_paths:
             try:
@@ -158,91 +159,53 @@ class GamepadController:
                 print(f"  Hat EV_KEY (Buttons)? {'Ja' if has_ev_key else 'Nein'}")
                 print(f"  Hat EV_ABS (Achsen)?  {'Ja' if has_ev_abs else 'Nein'}")
 
-                if has_ev_key and has_ev_abs:
-                    abs_axes_codes = cap.get(ecodes.EV_ABS, [])  # Liste der gemeldeten Achs-Codes
-                    key_codes = cap.get(ecodes.EV_KEY, [])  # Liste der gemeldeten Button-Codes
+                # Filterung primär über den Namen und grundlegende Fähigkeiten
+                if "controller" in device.name.lower() and has_ev_key and has_ev_abs:
+                    # Ignoriere bekannte Sub-Devices, die nicht die Haupt-Inputs liefern
+                    if "motion sensors" in device.name.lower() or "touchpad" in device.name.lower():
+                        print(f"  -> Ignoriere spezialisiertes Controller-Interface: {device.name}")
+                        device.close()  # Schließe Gerät, wenn es nicht das Haupt-Interface ist
+                        continue
 
-                    # --- Genauere Prüfung der Achsen ---
-                    # ABS_X (Code 0), ABS_Y (Code 1) für linken Stick
-                    # ABS_RX (Code 3), ABS_RY (Code 4) für rechten Stick
-                    # ABS_Z (Code 2 für LT), ABS_RZ (Code 5 für RT)
-
-                    # Wir erwarten, dass unser Controller diese Achsen anbietet:
-                    expected_abs_axes = {
-                        ABS_LEFT_X, ABS_LEFT_Y,  # Linker Stick ist essentiell
-                        ABS_RIGHT_X, ABS_RIGHT_Y,  # Rechter Stick für Kantelung/Höhe
-                        ABS_LT, ABS_RT  # Trigger für Gänge
-                    }
-
-                    # Welche davon sind in den Capabilities vorhanden?
-                    present_abs_axes = set(abs_axes_codes)
-                    has_left_stick = ABS_LEFT_X in present_abs_axes and ABS_LEFT_Y in present_abs_axes
-                    has_right_stick = ABS_RIGHT_X in present_abs_axes and ABS_RIGHT_Y in present_abs_axes
-                    has_triggers = ABS_LT in present_abs_axes and ABS_RT in present_abs_axes
-
-                    print(f"  Hat Linken Stick?   {'Ja' if has_left_stick else 'Nein'}")
-                    print(f"  Hat Rechten Stick?  {'Ja' if has_right_stick else 'Nein'}")
-                    print(f"  Hat Trigger?        {'Ja' if has_triggers else 'Nein'}")
-
-                    # Prüfe auf einige typische Buttons
-                    present_key_codes = set(key_codes)
-                    has_main_action_button = BTN_HORN in present_key_codes  # z.B. Kreuz/A
-                    has_shoulder_button = BTN_KANTELUNG_MODE in present_key_codes  # z.B. L1/LB
-
-                    print(f"  Hat gemappten Horn-Button? {'Ja' if has_main_action_button else 'Nein'}")
-                    print(f"  Hat gemappten Kantelungs-Button? {'Ja' if has_shoulder_button else 'Nein'}")
-
-                    # Kriterien: Muss linken Stick UND rechten Stick UND Trigger UND Hauptaktionsbuttons haben
-                    # Diese Kriterien sind jetzt strenger, um das "Haupt"-Interface zu finden.
-                    if has_left_stick and has_right_stick and has_triggers and has_main_action_button and has_shoulder_button:
-                        # Zusätzlicher Check auf den Namen, um "Motion Sensors" etc. auszuschließen
-                        if "controller" in device.name.lower() and "motion" not in device.name.lower() and "touchpad" not in device.name.lower():
-                            print(f"  -> QUALIFIZIERTES Gamepad gefunden: {device.path} ({device.name})")
-                            potential_gamepads.append(device.path)
-                        else:
-                            print(
-                                f"  -> Erfüllt Achsen/Button-Kriterien, aber Name ('{device.name}') passt nicht optimal (ignoriere Motion/Touchpad).")
-                    elif "controller" in device.name.lower() and has_left_stick and has_main_action_button:
-                        # Fallback: Wenn der Name "Controller" enthält und zumindest linken Stick + Hauptbutton hat
+                    print(f"  -> Potentielles Haupt-Gamepad-Interface gefunden: {device.path} ({device.name})")
+                    # Wir können die genauen Achsen hier nicht mehr 100% aus capabilities validieren,
+                    # da sie für PS5 anscheinend nicht alle direkt gelistet sind.
+                    # Wir verlassen uns darauf, dass das "Haupt"-Controller-Device die nötigen Achsen hat.
+                    # Überprüfen wir zumindest, ob *irgendwelche* ABS-Achsen gemeldet werden.
+                    if not cap.get(ecodes.EV_ABS, []):
                         print(
-                            f"  -> Potentielles Gamepad (Fallback auf Name & Min-Kriterien): {device.path} ({device.name})")
-                        potential_gamepads.append(device.path)  # Füge es hinzu, aber vielleicht weniger priorisiert
-                    else:
-                        print(f"  -> Nicht als primäres Gamepad eingestuft.")
+                            f"  -> Aber keine ABS-Achsen in Capabilities für {device.name} gelistet, obwohl EV_ABS vorhanden. Seltsam.")
+                        device.close()
+                        continue
+
+                    candidate_devices.append(device.path)
                 else:
-                    print(f"  -> Kein Gamepad (fehlt EV_KEY oder EV_ABS).")
+                    print(
+                        f"  -> Nicht als Gamepad-Hauptinterface eingestuft (Name oder Basisfähigkeiten passen nicht).")
+                    device.close()  # Schließe Gerät, wenn es nicht in Frage kommt
+
             except Exception as e:
                 print(f"Fehler beim Prüfen von {path}: {e}", file=sys.stderr)
+                if 'device' in locals() and device:  # Sicherstellen, dass device Objekt existiert
+                    try:
+                        device.close()
+                    except:
+                        pass
 
-        if not potential_gamepads:
-            print("WARNUNG: Kein Gerät erfüllte die Kriterien für ein Gamepad.", file=sys.stderr)
+        if not candidate_devices:
+            print("WARNUNG: Kein Gerät erfüllte die Kriterien für ein Gamepad-Hauptinterface.", file=sys.stderr)
             return None
 
-        # Wähle das beste Gerät aus (z.B. das mit den meisten erwarteten Features oder dem spezifischsten Namen)
-        # Fürs Erste nehmen wir das erste, das die strengeren Kriterien erfüllte,
-        # oder das erste aus dem Fallback.
-        # Ideal wäre eine Priorisierung, aber das macht es komplex.
-        # Wir nehmen einfach das erste gefundene, das die Bedingungen erfüllt hat.
+        # Wenn mehrere Kandidaten, nimm den ersten (oder implementiere eine Logik,
+        # z.B. den mit den meisten Achsen/Buttons, aber das wird komplexer)
+        if len(candidate_devices) > 1:
+            print(f"WARNUNG: Mehrere potentielle Gamepad-Hauptinterfaces gefunden: {candidate_devices}",
+                  file=sys.stderr)
+            print(f"Verwende das erste gefundene: {candidate_devices[0]}", file=sys.stderr)
 
-        # Filtere nach Namen, um Motion Sensors etc. explizit auszuschließen, FALLS es mehrere gibt
-        best_match = None
-        for path in potential_gamepads:
-            device = InputDevice(path)  # Erneutes Öffnen ist nicht ideal, aber für die Logik hier ok
-            if "controller" in device.name.lower() and "motion" not in device.name.lower() and "touchpad" not in device.name.lower():
-                best_match = path
-                break  # Nimm das erste, das kein Sensor/Touchpad ist
-            device.close()  # Schließe wieder
-
-        if not best_match and potential_gamepads:
-            best_match = potential_gamepads[0]  # Fallback auf das erste gefundene
-            print(f"WARNUNG: Wähle Gamepad '{best_match}', Name könnte nicht ideal sein.")
-
-        if best_match:
-            print(f"Gamepad ausgewählt: {best_match}")
-            return best_match
-        else:
-            print("WARNUNG: Kein Gerät endgültig ausgewählt.", file=sys.stderr)
-            return None
+        selected_path = candidate_devices[0]
+        print(f"Gamepad ausgewählt: {selected_path}")
+        return selected_path
 
     def _control_loop_thread_func(self):
         """Periodisch Zustände verarbeiten und Befehle senden."""
