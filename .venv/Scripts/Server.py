@@ -259,8 +259,8 @@ def run_server():
                 print(f"ZMQ Subscriber (von ML2) verbunden mit tcp://{magic_leap_ip}:{pc_port_for_ml + 1}")
                 # Initiale Zustände an ML2 senden
                 if publisher_socket_to_ml and wc_instance:
-                    publisher_socket_to_ml.send_multipart(
-                        [b"gear", to_network_order(wc_instance.get_actual_gear(), 'i')])
+                    #publisher_socket_to_ml.send_multipart(
+                        #[b"gear", to_network_order(wc_instance.get_actual_gear(), 'i')])
                     publisher_socket_to_ml.send_multipart([b"lights", to_network_order(wc_instance.get_lights(), '?')])
                     publisher_socket_to_ml.send_multipart([b"warn", to_network_order(wc_instance.get_warn(), '?')])
                     publisher_socket_to_ml.send_multipart(
