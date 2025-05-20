@@ -45,6 +45,20 @@ BTN_KANTELUNG_MODE = ecodes.BTN_TL # L1 für Kantelungsmodus
 BTN_HEIGHT_MODE = ecodes.BTN_TR    # R1 für Höhenmodus
 BTN_QUIT_APP = ecodes.BTN_START  # Options-Taste zum Beenden (oder BTN_MODE)
 
+def get_btn_display_name(button_code):
+    """
+    Holt den Namen eines Buttons und formatiert ihn für die Anzeige.
+    Behandelt den Fall, dass ecodes.BTN[code] eine Liste zurückgibt.
+    """
+    name_or_list = ecodes.BTN.get(button_code) # .get() ist sicherer als direkter Zugriff
+    if isinstance(name_or_list, list):
+        if name_or_list: # Stelle sicher, dass die Liste nicht leer ist
+            return name_or_list[0].replace('BTN_', '').replace('KEY_', '') # Nimm den ersten Alias
+        return 'N/A (empty list)'
+    elif isinstance(name_or_list, str):
+        return name_or_list.replace('BTN_', '').replace('KEY_', '')
+    return f'N/A (code {button_code})'
+
 
 class GamepadController:
     def __init__(self, wheelchair_instance: WheelchairControlReal):
@@ -285,57 +299,48 @@ class GamepadController:
         print("---------------------------------------------------------------")
         print("Gamepad Steuerung (Beispiel PS5/Xbox ähnlich):")
         print(" - Linker Stick: Fahren")
-        print(f" - Rechter Stick Y: Sitzkantelung (wenn L1/LB -> Modus ist '{SEAT_TILT_AXIS_ID.name}')")
-        #print(f" - Rechter Stick X: Sitzhöhe (wenn R1/RB -> Modus ist '{SEAT_HEIGHT_AXIS_ID.name}')")
+        print(
+            f" - Rechter Stick Y: Sitzkantelung (wenn {get_btn_display_name(BTN_KANTELUNG_MODE)} -> Modus ist '{SEAT_TILT_AXIS_ID.name}')")
+        #print(
+            #f" - Rechter Stick X: Sitzhöhe (wenn {get_btn_display_name(BTN_HEIGHT_MODE)} -> Modus ist '{SEAT_HEIGHT_AXIS_ID.name}')")
         print(" - Rechter Trigger (R2/RT): Gang hoch")
         print(" - Linker Trigger (L2/LT): Gang runter")
-        print(f" - {ecodes.BTN[BTN_HORN].replace('BTN_', '') if BTN_HORN in ecodes.BTN else 'N/A'}: Hupe AN/AUS")
-        print(f" - {ecodes.BTN[BTN_LIGHTS].replace('BTN_', '') if BTN_LIGHTS in ecodes.BTN else 'N/A'}: Licht AN/AUS")
-        print(f" - {ecodes.BTN[BTN_WARN].replace('BTN_', '') if BTN_WARN in ecodes.BTN else 'N/A'}: Warnblinker AN/AUS")
-        print(
-            f" - {ecodes.BTN[BTN_KANTELUNG_MODE].replace('BTN_', '') if BTN_KANTELUNG_MODE in ecodes.BTN else 'N/A'}: Kantelungsmodus AN/AUS")
-        #print(
-            #f" - {ecodes.BTN[BTN_HEIGHT_MODE].replace('BTN_', '') if BTN_HEIGHT_MODE in ecodes.BTN else 'N/A'}: Sitzhöhenmodus AN/AUS")
-        print(f" - {ecodes.BTN[BTN_QUIT_APP].replace('BTN_', '') if BTN_QUIT_APP in ecodes.BTN else 'N/A'}: Beenden")
+        print(f" - {get_btn_display_name(BTN_HORN)}: Hupe AN/AUS")
+        print(f" - {get_btn_display_name(BTN_LIGHTS)}: Licht AN/AUS")
+        print(f" - {get_btn_display_name(BTN_WARN)}: Warnblinker AN/AUS")
+        print(f" - {get_btn_display_name(BTN_KANTELUNG_MODE)}: Kantelungsmodus AN/AUS")
+        #print(f" - {get_btn_display_name(BTN_HEIGHT_MODE)}: Sitzhöhenmodus AN/AUS")
+        print(f" - {get_btn_display_name(BTN_QUIT_APP)}: Beenden")
         print("---------------------------------------------------------------")
 
         wc_real_instance = None
         gamepad_controller_instance = None
         try:
-            # Annahme: wheelchair_control_module.py ist im selben Verzeichnis oder im PYTHONPATH
-            # und enthält die WheelchairControlReal Klasse
             print("Initialisiere WheelchairControlReal...")
             wc_real_instance = WheelchairControlReal(device_index=0)
 
             print("Initialisiere GamepadController...")
             gamepad_controller_instance = GamepadController(wc_real_instance)
 
-            if not gamepad_controller_instance.start():  # Startet die internen Threads des Controllers
+            if not gamepad_controller_instance.start():
                 print("Fehler beim Starten des Gamepad Controllers. Beende.", file=sys.stderr)
                 if wc_real_instance: wc_real_instance.shutdown()
                 sys.exit(1)
 
-            # Hauptschleife der Standalone-Anwendung (wartet auf Quit-Event)
             while not gamepad_controller_instance.quit_event.is_set():
-                time.sleep(0.5)  # Der Haupt-Thread kann meistens schlafen
+                time.sleep(0.5)
             print("Quit-Event vom GamepadController empfangen.")
 
         except KeyboardInterrupt:
             print("\nCtrl+C erkannt, beende Programm.")
-            if gamepad_controller_instance:
-                gamepad_controller_instance.quit_event.set()
         except RLinkError as e:
             print(f"RLink Fehler im Hauptprogramm: {e}", file=sys.stderr)
-        except ConnectionError as e:  # Von WheelchairControlReal init
+        except ConnectionError as e:
             print(f"Verbindungsfehler im Hauptprogramm: {e}", file=sys.stderr)
         except Exception as e:
-            print(f"Ein unerwarteter Fehler im Hauptprogramm ist aufgetreten: {e}", file=sys.stderr)
-            import traceback
-            traceback.print_exc()
+            print(f"Unerwarteter Fehler: {e}", file=sys.stderr); import traceback; traceback.print_exc()
         finally:
             print("\nRäume im Hauptprogramm auf...")
-            if gamepad_controller_instance:
-                gamepad_controller_instance.stop()  # Stoppt die Threads des GamepadControllers
-            if wc_real_instance:
-                wc_real_instance.shutdown()  # Stoppt Heartbeat-Thread und schließt RLink
+            if gamepad_controller_instance: gamepad_controller_instance.stop()
+            if wc_real_instance: wc_real_instance.shutdown()
             print("Programm beendet.")
