@@ -231,7 +231,7 @@ def run_server():
                     subscriber_socket.setsockopt(zmq.SUBSCRIBE, b"horn")
                     subscriber_socket.setsockopt(zmq.SUBSCRIBE, b"kantelung")
 
-                    #publisher_socket.send_multipart([b"gear", to_network_order(wheelchair.get_actual_gear, 'i')])
+                    publisher_socket.send_multipart([b"gear", to_network_order(wheelchair.get_actual_gear(), 'i')])
                     publisher_socket.send_multipart([b"lights", to_network_order(wheelchair.get_lights(), '?')])
                     publisher_socket.send_multipart([b"warn", to_network_order(wheelchair.get_warn(), '?')])
                     ready_received = True
