@@ -286,7 +286,7 @@ class GamepadController:
         print("Gamepad Steuerung (Beispiel PS5/Xbox ähnlich):")
         print(" - Linker Stick: Fahren")
         print(f" - Rechter Stick Y: Sitzkantelung (wenn L1/LB -> Modus ist '{SEAT_TILT_AXIS_ID.name}')")
-        print(f" - Rechter Stick X: Sitzhöhe (wenn R1/RB -> Modus ist '{SEAT_HEIGHT_AXIS_ID.name}')")
+        #print(f" - Rechter Stick X: Sitzhöhe (wenn R1/RB -> Modus ist '{SEAT_HEIGHT_AXIS_ID.name}')")
         print(" - Rechter Trigger (R2/RT): Gang hoch")
         print(" - Linker Trigger (L2/LT): Gang runter")
         print(f" - {ecodes.BTN[BTN_HORN].replace('BTN_', '') if BTN_HORN in ecodes.BTN else 'N/A'}: Hupe AN/AUS")
