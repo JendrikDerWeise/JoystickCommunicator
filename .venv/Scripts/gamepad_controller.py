@@ -83,25 +83,20 @@ class GamepadController:
 
     def _find_gamepad(self):
         print("Suche nach Gamepad...")
-        # Holt alle event devices
         device_paths = list_devices()
         if not device_paths:
             print("WARNUNG: Keine Input-Geräte unter /dev/input/event* gefunden.", file=sys.stderr)
             return None
 
         print(f"Gefundene Event-Geräte: {device_paths}")
-
         potential_gamepads = []
 
         for path in device_paths:
             try:
                 device = InputDevice(path)
-                print(f"\nPrüfe Gerät: {device.path} ({device.name})")
+                print(f"\nPrüfe Gerät: {device.path} (Name: '{device.name}', Phys: '{device.phys}')")
 
-                cap = device.capabilities(verbose=False)  # verbose=False für kompaktere Ausgabe
-                # print(f"  Capabilities: {cap}") # SEHR VERBOSE, nur bei Bedarf aktivieren
-
-                # Prüfe auf Gamepad-typische Events
+                cap = device.capabilities(verbose=False)
                 has_ev_key = ecodes.EV_KEY in cap
                 has_ev_abs = ecodes.EV_ABS in cap
 
@@ -109,47 +104,58 @@ class GamepadController:
                 print(f"  Hat EV_ABS (Achsen)?  {'Ja' if has_ev_abs else 'Nein'}")
 
                 if has_ev_key and has_ev_abs:
-                    abs_axes = cap.get(ecodes.EV_ABS, [])
-                    keys = cap.get(ecodes.EV_KEY, [])
+                    abs_axes_codes = cap.get(ecodes.EV_ABS, [])  # Liste der gemeldeten Achs-Codes
+                    key_codes = cap.get(ecodes.EV_KEY, [])  # Liste der gemeldeten Button-Codes
 
-                    # Prüfe auf Standard-Stick-Achsen
-                    # Xbox und PS Controller verwenden normalerweise ABS_X/Y für links und ABS_RX/RY für rechts
-                    has_left_stick_x = ecodes.ABS_X in abs_axes
-                    has_left_stick_y = ecodes.ABS_Y in abs_axes
-                    has_right_stick_x = ecodes.ABS_RX in abs_axes  # Für PS5: Code 3
-                    has_right_stick_y = ecodes.ABS_RY in abs_axes  # Für PS5: Code 4
+                    # --- Genauere Prüfung der Achsen ---
+                    # ABS_X (Code 0), ABS_Y (Code 1) für linken Stick
+                    # ABS_RX (Code 3), ABS_RY (Code 4) für rechten Stick
+                    # ABS_Z (Code 2 für LT), ABS_RZ (Code 5 für RT)
 
-                    print(f"  Hat Linken Stick X (ABS_X)?   {'Ja' if has_left_stick_x else 'Nein'}")
-                    print(f"  Hat Linken Stick Y (ABS_Y)?   {'Ja' if has_left_stick_y else 'Nein'}")
-                    print(f"  Hat Rechten Stick X (ABS_RX)? {'Ja' if has_right_stick_x else 'Nein'}")
-                    print(f"  Hat Rechten Stick Y (ABS_RY)? {'Ja' if has_right_stick_y else 'Nein'}")
+                    # Wir erwarten, dass unser Controller diese Achsen anbietet:
+                    expected_abs_axes = {
+                        ABS_LEFT_X, ABS_LEFT_Y,  # Linker Stick ist essentiell
+                        ABS_RIGHT_X, ABS_RIGHT_Y,  # Rechter Stick für Kantelung/Höhe
+                        ABS_LT, ABS_RT  # Trigger für Gänge
+                    }
 
-                    # Prüfe auf einige typische Buttons (die wir mappen wollen)
-                    # Diese Konstanten (BTN_HORN etc.) sind oben im Skript definiert
-                    # z.B. BTN_HORN = ecodes.BTN_SOUTH (Kreuz)
-                    has_mapped_button_1 = BTN_HORN in keys
-                    has_mapped_button_2 = BTN_KANTELUNG_MODE in keys  # L1
+                    # Welche davon sind in den Capabilities vorhanden?
+                    present_abs_axes = set(abs_axes_codes)
+                    has_left_stick = ABS_LEFT_X in present_abs_axes and ABS_LEFT_Y in present_abs_axes
+                    has_right_stick = ABS_RIGHT_X in present_abs_axes and ABS_RIGHT_Y in present_abs_axes
+                    has_triggers = ABS_LT in present_abs_axes and ABS_RT in present_abs_axes
 
-                    print(
-                        f"  Hat gemappten Horn-Button ({get_btn_display_name(BTN_HORN)})? {'Ja' if has_mapped_button_1 else 'Nein'}")
-                    print(
-                        f"  Hat gemappten Kantelungs-Button ({get_btn_display_name(BTN_KANTELUNG_MODE)})? {'Ja' if has_mapped_button_2 else 'Nein'}")
+                    print(f"  Hat Linken Stick?   {'Ja' if has_left_stick else 'Nein'}")
+                    print(f"  Hat Rechten Stick?  {'Ja' if has_right_stick else 'Nein'}")
+                    print(f"  Hat Trigger?        {'Ja' if has_triggers else 'Nein'}")
 
-                    # Kriterien für ein Gamepad (anpassbar)
-                    # Wir brauchen mindestens die linken Stick-Achsen für die Steuerung
-                    # und idealerweise einen der Buttons, die wir verwenden wollen.
-                    if has_left_stick_x and has_left_stick_y and (has_mapped_button_1 or has_mapped_button_2):
-                        print(f"  -> Potentielles Gamepad gefunden: {device.path} ({device.name})")
-                        potential_gamepads.append(device.path)
+                    # Prüfe auf einige typische Buttons
+                    present_key_codes = set(key_codes)
+                    has_main_action_button = BTN_HORN in present_key_codes  # z.B. Kreuz/A
+                    has_shoulder_button = BTN_KANTELUNG_MODE in present_key_codes  # z.B. L1/LB
+
+                    print(f"  Hat gemappten Horn-Button? {'Ja' if has_main_action_button else 'Nein'}")
+                    print(f"  Hat gemappten Kantelungs-Button? {'Ja' if has_shoulder_button else 'Nein'}")
+
+                    # Kriterien: Muss linken Stick UND rechten Stick UND Trigger UND Hauptaktionsbuttons haben
+                    # Diese Kriterien sind jetzt strenger, um das "Haupt"-Interface zu finden.
+                    if has_left_stick and has_right_stick and has_triggers and has_main_action_button and has_shoulder_button:
+                        # Zusätzlicher Check auf den Namen, um "Motion Sensors" etc. auszuschließen
+                        if "controller" in device.name.lower() and "motion" not in device.name.lower() and "touchpad" not in device.name.lower():
+                            print(f"  -> QUALIFIZIERTES Gamepad gefunden: {device.path} ({device.name})")
+                            potential_gamepads.append(device.path)
+                        else:
+                            print(
+                                f"  -> Erfüllt Achsen/Button-Kriterien, aber Name ('{device.name}') passt nicht optimal (ignoriere Motion/Touchpad).")
+                    elif "controller" in device.name.lower() and has_left_stick and has_main_action_button:
+                        # Fallback: Wenn der Name "Controller" enthält und zumindest linken Stick + Hauptbutton hat
+                        print(
+                            f"  -> Potentielles Gamepad (Fallback auf Name & Min-Kriterien): {device.path} ({device.name})")
+                        potential_gamepads.append(device.path)  # Füge es hinzu, aber vielleicht weniger priorisiert
                     else:
-                        print(f"  -> Nicht als primäres Gamepad eingestuft (fehlende Achsen/Buttons).")
+                        print(f"  -> Nicht als primäres Gamepad eingestuft.")
                 else:
                     print(f"  -> Kein Gamepad (fehlt EV_KEY oder EV_ABS).")
-
-                # Schließe das Gerät nach der Prüfung der Capabilities, wenn wir es nicht ausgewählt haben
-                # Wenn wir den Pfad speichern, müssen wir es nicht schließen, um es später zu öffnen.
-                # Da wir nur den Pfad speichern, ist device.close() hier nicht nötig.
-
             except Exception as e:
                 print(f"Fehler beim Prüfen von {path}: {e}", file=sys.stderr)
 
@@ -157,122 +163,31 @@ class GamepadController:
             print("WARNUNG: Kein Gerät erfüllte die Kriterien für ein Gamepad.", file=sys.stderr)
             return None
 
-        if len(potential_gamepads) > 1:
-            print(f"WARNUNG: Mehrere potentielle Gamepads gefunden: {potential_gamepads}", file=sys.stderr)
-            print(f"Verwende das erste gefundene: {potential_gamepads[0]}", file=sys.stderr)
-            # Hier könntest du eine Auswahl-Logik einbauen, falls nötig
+        # Wähle das beste Gerät aus (z.B. das mit den meisten erwarteten Features oder dem spezifischsten Namen)
+        # Fürs Erste nehmen wir das erste, das die strengeren Kriterien erfüllte,
+        # oder das erste aus dem Fallback.
+        # Ideal wäre eine Priorisierung, aber das macht es komplex.
+        # Wir nehmen einfach das erste gefundene, das die Bedingungen erfüllt hat.
 
-        print(f"Gamepad ausgewählt: {potential_gamepads[0]}")
-        return potential_gamepads[0]
+        # Filtere nach Namen, um Motion Sensors etc. explizit auszuschließen, FALLS es mehrere gibt
+        best_match = None
+        for path in potential_gamepads:
+            device = InputDevice(path)  # Erneutes Öffnen ist nicht ideal, aber für die Logik hier ok
+            if "controller" in device.name.lower() and "motion" not in device.name.lower() and "touchpad" not in device.name.lower():
+                best_match = path
+                break  # Nimm das erste, das kein Sensor/Touchpad ist
+            device.close()  # Schließe wieder
 
-    def _normalize_axis(self, value, min_val, max_val, deadzone=JOYSTICK_DEADZONE):
-        if max_val == min_val: return 0.0
-        norm_val = (value - min_val) / (max_val - min_val) * 2.0 - 1.0  # Direkt zu -1 bis 1
-        if abs(norm_val) < deadzone: return 0.0
-        # Optional: Wert nach Deadzone neu skalieren für vollen Ausschlag
-        # if norm_val > 0: norm_val = (norm_val - deadzone) / (1.0 - deadzone)
-        # elif norm_val < 0: norm_val = (norm_val + deadzone) / (1.0 - deadzone)
-        return round(max(-1.0, min(1.0, norm_val)), 3)
+        if not best_match and potential_gamepads:
+            best_match = potential_gamepads[0]  # Fallback auf das erste gefundene
+            print(f"WARNUNG: Wähle Gamepad '{best_match}', Name könnte nicht ideal sein.")
 
-    def _normalize_trigger(self, value, min_val, max_val):
-        if max_val == min_val: return 0.0
-        norm_val = (value - min_val) / (max_val - min_val)  # 0 bis 1
-        return round(max(0.0, min(1.0, norm_val)), 3)
-
-    def _handle_button_event(self, button_code, is_pressed):
-        """Verarbeitet Button-Druck/Loslassen für Toggle-Aktionen (Flankenerkennung)."""
-        action_taken = False
-        # Nur auf Druck reagieren (Flanke von nicht gedrückt zu gedrückt)
-        if is_pressed and not self._button_states.get(button_code, False):
-            if button_code == BTN_A_BUTTON:
-                self.wheelchair.on_horn(not self.wheelchair._horn_on)  # Toggle internen Horn-Status
-                action_taken = True
-            elif button_code == BTN_X_BUTTON:
-                self.wheelchair.set_lights()  # Methode ist ein Toggle
-                action_taken = True
-            elif button_code == BTN_Y_BUTTON:
-                self.wheelchair.set_warn()  # Methode ist ein Toggle
-                action_taken = True
-            elif button_code == BTN_LB_BUMPER:
-                self._gp_kantelung_active = not self._gp_kantelung_active
-                self.wheelchair.on_kantelung(self._gp_kantelung_active)  # Modus in WheelchairControl setzen
-                if self._gp_kantelung_active:  # Wenn Kantelung an, Höhe aus
-                    self._gp_height_active = False
-                    self.wheelchair.on_height_mode(False)
-                action_taken = True
-            elif button_code == BTN_RB_BUMPER:
-                self._gp_height_active = not self._gp_height_active
-                self.wheelchair.on_height_mode(self._gp_height_active)  # Modus in WheelchairControl setzen
-                if self._gp_height_active:  # Wenn Höhe an, Kantelung aus
-                    self._gp_kantelung_active = False
-                    self.wheelchair.on_kantelung(False)
-                action_taken = True
-            elif button_code == BTN_START_BUTTON:
-                print("Gamepad: Quit-Signal (START) empfangen.")
-                self.quit_event.set()
-                action_taken = True
-
-        self._button_states[button_code] = is_pressed  # Aktuellen Zustand für nächste Flanke merken
-        return action_taken
-
-    def _event_thread_func(self):
-        print("Gamepad event thread started.")
-        device_path = self._find_gamepad()
-        if not device_path:
-            self.quit_event.set();
-            print("Gamepad event thread finished (no device).");
-            return
-
-        try:
-            self.gamepad_device = InputDevice(device_path)
-            abs_info = self.gamepad_device.capabilities().get(ecodes.EV_ABS, {})
-            min_max_vals = {code: (info.min, info.max) for code, info in abs_info}
-            print(f"Gamepad '{self.gamepad_device.name}' verbunden. Min/Max Werte: {min_max_vals}")
-            # self.gamepad_device.grab() # Optional, wenn exklusiver Zugriff benötigt wird
-        except Exception as e:
-            print(f"Fehler beim Öffnen des Gamepads {device_path}: {e}", file=sys.stderr)
-            if isinstance(e, OSError) and e.errno == 13: print("-> Keine Berechtigung?", file=sys.stderr)
-            self.quit_event.set();
-            print("Gamepad event thread finished (error).");
-            return
-
-        try:
-            for event in self.gamepad_device.read_loop():
-                if self.quit_event.is_set(): break
-
-                if event.type == ecodes.EV_ABS:
-                    min_val, max_val = min_max_vals.get(event.code, (0, 255))
-                    if event.code == ABS_LEFT_X:
-                        self.left_x = self._normalize_axis(event.value, min_val, max_val)
-                    elif event.code == ABS_LEFT_Y:
-                        self.left_y = -self._normalize_axis(event.value, min_val, max_val)
-                    elif event.code == ABS_RIGHT_X:
-                        self.right_x = self._normalize_axis(event.value, min_val, max_val)
-                    elif event.code == ABS_RIGHT_Y:
-                        self.right_y = -self._normalize_axis(event.value, min_val, max_val)
-                    elif event.code == ABS_LT:
-                        self.lt_value = self._normalize_trigger(event.value, min_val, max_val)
-                    elif event.code == ABS_RT:
-                        self.rt_value = self._normalize_trigger(event.value, min_val, max_val)
-
-                elif event.type == ecodes.EV_KEY:
-                    self._handle_button_event(event.code, event.value == 1 or event.value == 2)
-
-        except IOError as e:
-            print(f"IOError im Gamepad-Thread (Gamepad getrennt?): {e}", file=sys.stderr)
-        except Exception as e:
-            print(f"Unerwarteter Fehler im Gamepad-Event-Thread: {e}", file=sys.stderr)
-            import traceback;
-            traceback.print_exc()
-        finally:
-            self.quit_event.set()  # Signalisiere auch Control-Loop zum Beenden
-            if self.gamepad_device:
-                try:
-                    self.gamepad_device.ungrab()
-                except:
-                    pass
-                self.gamepad_device.close()
-        print("Gamepad event thread finished.")
+        if best_match:
+            print(f"Gamepad ausgewählt: {best_match}")
+            return best_match
+        else:
+            print("WARNUNG: Kein Gerät endgültig ausgewählt.", file=sys.stderr)
+            return None
 
     def _control_loop_thread_func(self):
         """Periodisch Zustände verarbeiten und Befehle senden."""
