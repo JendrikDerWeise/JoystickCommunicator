@@ -291,7 +291,7 @@ def run_server():
                         print(f"Trigger-Datei '{JOYSTICK_VISIBILITY_TRIGGER_FILE}' gefunden.")
                         if publisher_socket and not publisher_socket.closed:
                             print("Sende 'joystick_toggle_visibility' an ML2...")
-                            publisher_socket.send_multipart([b"joystick_toggle_visibility", b"toggle"])
+                            publisher_socket.send_multipart([b"joystick_toggle_visibility", b""])
                             # Erfolgsmeldung oder weitere Verarbeitung
                         else:
                             print("Fehler: ZMQ Publisher-Socket nicht bereit für Joystick-Toggle.", file=sys.stderr)
