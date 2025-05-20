@@ -325,7 +325,7 @@ class GamepadController:
 
 
 # --- STANDALONE TESTBLOCK ---
-if __name__ == '__main__':
+'''if __name__ == '__main__':
     print("Starte Gamepad Controller für Rollstuhl (Standalone Test)...")
     print("---------------------------------------------------------------")
     print("WARNUNG: Stellt sicher, dass die originale (fehlerhafte) udev-Regel aktiv ist!")
@@ -385,4 +385,4 @@ if __name__ == '__main__':
             gamepad_controller_instance.stop()
         if wc_real_instance:
             wc_real_instance.shutdown()
-        print("Programm beendet.")
+        print("Programm beendet.")'''
