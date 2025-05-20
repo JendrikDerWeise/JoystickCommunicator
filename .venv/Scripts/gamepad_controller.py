@@ -290,57 +290,55 @@ class GamepadController:
         print("GamepadController gestoppt.")
 
     # --- STANDALONE TESTBLOCK ---
-    if __name__ == '__main__':
-        print("Starte Gamepad Controller für Rollstuhl (Standalone Test)...")
-        print("---------------------------------------------------------------")
-        print("WARNUNG: Stellt sicher, dass die originale (fehlerhafte) udev-Regel aktiv ist!")
-        print("         und dass der Benutzer Mitglied der Gruppe 'input' ist oder")
-        print("         das Skript mit 'sudo' läuft (für /dev/input/* Zugriff).")
-        print("---------------------------------------------------------------")
-        print("Gamepad Steuerung (Beispiel PS5/Xbox ähnlich):")
-        print(" - Linker Stick: Fahren")
-        print(
-            f" - Rechter Stick Y: Sitzkantelung (wenn {get_btn_display_name(BTN_KANTELUNG_MODE)} -> Modus ist '{SEAT_TILT_AXIS_ID.name}')")
+if __name__ == '__main__':
+    print("Starte Gamepad Controller für Rollstuhl (Standalone Test)...")
+    print("---------------------------------------------------------------")
+    print("WARNUNG: Stellt sicher, dass die originale (fehlerhafte) udev-Regel aktiv ist!")
+    print("         und dass der Benutzer Mitglied der Gruppe 'input' ist oder")
+    print("         das Skript mit 'sudo' läuft (für /dev/input/* Zugriff).")
+    print("---------------------------------------------------------------")
+    print("Gamepad Steuerung (Beispiel PS5/Xbox ähnlich):")
+    print(" - Linker Stick: Fahren")
+    print(
+        f" - Rechter Stick Y: Sitzkantelung (wenn {get_btn_display_name(BTN_KANTELUNG_MODE)} -> Modus ist '{SEAT_TILT_AXIS_ID.name}')")
         #print(
             #f" - Rechter Stick X: Sitzhöhe (wenn {get_btn_display_name(BTN_HEIGHT_MODE)} -> Modus ist '{SEAT_HEIGHT_AXIS_ID.name}')")
-        print(" - Rechter Trigger (R2/RT): Gang hoch")
-        print(" - Linker Trigger (L2/LT): Gang runter")
-        print(f" - {get_btn_display_name(BTN_HORN)}: Hupe AN/AUS")
-        print(f" - {get_btn_display_name(BTN_LIGHTS)}: Licht AN/AUS")
-        print(f" - {get_btn_display_name(BTN_WARN)}: Warnblinker AN/AUS")
-        print(f" - {get_btn_display_name(BTN_KANTELUNG_MODE)}: Kantelungsmodus AN/AUS")
-        #print(f" - {get_btn_display_name(BTN_HEIGHT_MODE)}: Sitzhöhenmodus AN/AUS")
-        print(f" - {get_btn_display_name(BTN_QUIT_APP)}: Beenden")
-        print("---------------------------------------------------------------")
+    print(" - Rechter Trigger (R2/RT): Gang hoch")
+    print(" - Linker Trigger (L2/LT): Gang runter")
+    print(f" - {get_btn_display_name(BTN_HORN)}: Hupe AN/AUS")
+    print(f" - {get_btn_display_name(BTN_LIGHTS)}: Licht AN/AUS")
+    print(f" - {get_btn_display_name(BTN_WARN)}: Warnblinker AN/AUS")
+    print(f" - {get_btn_display_name(BTN_KANTELUNG_MODE)}: Kantelungsmodus AN/AUS")
+    #print(f" - {get_btn_display_name(BTN_HEIGHT_MODE)}: Sitzhöhenmodus AN/AUS")
+    print(f" - {get_btn_display_name(BTN_QUIT_APP)}: Beenden")
+    print("---------------------------------------------------------------")
+    wc_real_instance = None
+    gamepad_controller_instance = None
+    try:
+        print("Initialisiere WheelchairControlReal...")
+        wc_real_instance = WheelchairControlReal(device_index=0)
+        print("Initialisiere GamepadController...")
+        gamepad_controller_instance = GamepadController(wc_real_instance)
 
-        wc_real_instance = None
-        gamepad_controller_instance = None
-        try:
-            print("Initialisiere WheelchairControlReal...")
-            wc_real_instance = WheelchairControlReal(device_index=0)
-
-            print("Initialisiere GamepadController...")
-            gamepad_controller_instance = GamepadController(wc_real_instance)
-
-            if not gamepad_controller_instance.start():
-                print("Fehler beim Starten des Gamepad Controllers. Beende.", file=sys.stderr)
-                if wc_real_instance: wc_real_instance.shutdown()
-                sys.exit(1)
-
-            while not gamepad_controller_instance.quit_event.is_set():
-                time.sleep(0.5)
-            print("Quit-Event vom GamepadController empfangen.")
-
-        except KeyboardInterrupt:
-            print("\nCtrl+C erkannt, beende Programm.")
-        except RLinkError as e:
-            print(f"RLink Fehler im Hauptprogramm: {e}", file=sys.stderr)
-        except ConnectionError as e:
-            print(f"Verbindungsfehler im Hauptprogramm: {e}", file=sys.stderr)
-        except Exception as e:
-            print(f"Unerwarteter Fehler: {e}", file=sys.stderr); import traceback; traceback.print_exc()
-        finally:
-            print("\nRäume im Hauptprogramm auf...")
-            if gamepad_controller_instance: gamepad_controller_instance.stop()
+        if not gamepad_controller_instance.start():
+            print("Fehler beim Starten des Gamepad Controllers. Beende.", file=sys.stderr)
             if wc_real_instance: wc_real_instance.shutdown()
-            print("Programm beendet.")
+            sys.exit(1)
+
+        while not gamepad_controller_instance.quit_event.is_set():
+            time.sleep(0.5)
+        print("Quit-Event vom GamepadController empfangen.")
+
+    except KeyboardInterrupt:
+        print("\nCtrl+C erkannt, beende Programm.")
+    except RLinkError as e:
+        print(f"RLink Fehler im Hauptprogramm: {e}", file=sys.stderr)
+    except ConnectionError as e:
+        print(f"Verbindungsfehler im Hauptprogramm: {e}", file=sys.stderr)
+    except Exception as e:
+        print(f"Unerwarteter Fehler: {e}", file=sys.stderr); import traceback; traceback.print_exc()
+    finally:
+        print("\nRäume im Hauptprogramm auf...")
+        if gamepad_controller_instance: gamepad_controller_instance.stop()
+        if wc_real_instance: wc_real_instance.shutdown()
+        print("Programm beendet.")
