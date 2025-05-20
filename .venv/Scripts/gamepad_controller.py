@@ -11,7 +11,7 @@ import math
 try:
     # Stelle sicher, dass dieser Import auf deine tatsächliche Datei zeigt
     # und dass diese Datei die notwendigen Definitionen enthält.
-    from wheelchair_control_module import (
+    from WheelchairControlReal import (
         WheelchairControlReal, RLinkError,
         RLinkLight, RLinkAxisId, RLinkAxisDir,
         SEAT_TILT_AXIS_ID,  # SEAT_HEIGHT_AXIS_ID, # Auskommentiert
