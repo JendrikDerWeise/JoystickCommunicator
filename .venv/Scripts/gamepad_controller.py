@@ -274,3 +274,68 @@ class GamepadController:
         if self.event_thread: self.event_thread.join(timeout=1.0)
         if self.control_thread: self.control_thread.join(timeout=1.0)
         print("GamepadController gestoppt.")
+
+    # --- STANDALONE TESTBLOCK ---
+    if __name__ == '__main__':
+        print("Starte Gamepad Controller für Rollstuhl (Standalone Test)...")
+        print("---------------------------------------------------------------")
+        print("WARNUNG: Stellt sicher, dass die originale (fehlerhafte) udev-Regel aktiv ist!")
+        print("         und dass der Benutzer Mitglied der Gruppe 'input' ist oder")
+        print("         das Skript mit 'sudo' läuft (für /dev/input/* Zugriff).")
+        print("---------------------------------------------------------------")
+        print("Gamepad Steuerung (Beispiel PS5/Xbox ähnlich):")
+        print(" - Linker Stick: Fahren")
+        print(f" - Rechter Stick Y: Sitzkantelung (wenn L1/LB -> Modus ist '{SEAT_TILT_AXIS_ID.name}')")
+        print(f" - Rechter Stick X: Sitzhöhe (wenn R1/RB -> Modus ist '{SEAT_HEIGHT_AXIS_ID.name}')")
+        print(" - Rechter Trigger (R2/RT): Gang hoch")
+        print(" - Linker Trigger (L2/LT): Gang runter")
+        print(f" - {ecodes.BTN[BTN_HORN].replace('BTN_', '') if BTN_HORN in ecodes.BTN else 'N/A'}: Hupe AN/AUS")
+        print(f" - {ecodes.BTN[BTN_LIGHTS].replace('BTN_', '') if BTN_LIGHTS in ecodes.BTN else 'N/A'}: Licht AN/AUS")
+        print(f" - {ecodes.BTN[BTN_WARN].replace('BTN_', '') if BTN_WARN in ecodes.BTN else 'N/A'}: Warnblinker AN/AUS")
+        print(
+            f" - {ecodes.BTN[BTN_KANTELUNG_MODE].replace('BTN_', '') if BTN_KANTELUNG_MODE in ecodes.BTN else 'N/A'}: Kantelungsmodus AN/AUS")
+        print(
+            f" - {ecodes.BTN[BTN_HEIGHT_MODE].replace('BTN_', '') if BTN_HEIGHT_MODE in ecodes.BTN else 'N/A'}: Sitzhöhenmodus AN/AUS")
+        print(f" - {ecodes.BTN[BTN_QUIT_APP].replace('BTN_', '') if BTN_QUIT_APP in ecodes.BTN else 'N/A'}: Beenden")
+        print("---------------------------------------------------------------")
+
+        wc_real_instance = None
+        gamepad_controller_instance = None
+        try:
+            # Annahme: wheelchair_control_module.py ist im selben Verzeichnis oder im PYTHONPATH
+            # und enthält die WheelchairControlReal Klasse
+            print("Initialisiere WheelchairControlReal...")
+            wc_real_instance = WheelchairControlReal(device_index=0)
+
+            print("Initialisiere GamepadController...")
+            gamepad_controller_instance = GamepadController(wc_real_instance)
+
+            if not gamepad_controller_instance.start():  # Startet die internen Threads des Controllers
+                print("Fehler beim Starten des Gamepad Controllers. Beende.", file=sys.stderr)
+                if wc_real_instance: wc_real_instance.shutdown()
+                sys.exit(1)
+
+            # Hauptschleife der Standalone-Anwendung (wartet auf Quit-Event)
+            while not gamepad_controller_instance.quit_event.is_set():
+                time.sleep(0.5)  # Der Haupt-Thread kann meistens schlafen
+            print("Quit-Event vom GamepadController empfangen.")
+
+        except KeyboardInterrupt:
+            print("\nCtrl+C erkannt, beende Programm.")
+            if gamepad_controller_instance:
+                gamepad_controller_instance.quit_event.set()
+        except RLinkError as e:
+            print(f"RLink Fehler im Hauptprogramm: {e}", file=sys.stderr)
+        except ConnectionError as e:  # Von WheelchairControlReal init
+            print(f"Verbindungsfehler im Hauptprogramm: {e}", file=sys.stderr)
+        except Exception as e:
+            print(f"Ein unerwarteter Fehler im Hauptprogramm ist aufgetreten: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc()
+        finally:
+            print("\nRäume im Hauptprogramm auf...")
+            if gamepad_controller_instance:
+                gamepad_controller_instance.stop()  # Stoppt die Threads des GamepadControllers
+            if wc_real_instance:
+                wc_real_instance.shutdown()  # Stoppt Heartbeat-Thread und schließt RLink
+            print("Programm beendet.")
