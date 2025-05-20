@@ -11,6 +11,7 @@ CONFIG_FILE_PI = "wheelchair_config.json"  # Für Pi-seitige Rollstuhlparameter
 GIT_PULL_DIRECTORY = "/home/jendrik/projekte/JoystickCommunicator"
 PATH_TO_START_ZMQ_SCRIPT = "/home/jendrik/projekte/scripts/start_zmq.sh"
 PATH_TO_STOP_ZMQ_SCRIPT = "/home/jendrik/projekte/scripts/stop_zmq.sh"
+JOYSTICK_VISIBILITY_TRIGGER_FILE = "/tmp/joystick_visibility_trigger.txt"
 DEFAULT_CONFIG_PI = {
     "gear_factors": {
         "1": 0.2, "2": 0.4, "3": 0.6, "4": 0.8, "5": 1.0
