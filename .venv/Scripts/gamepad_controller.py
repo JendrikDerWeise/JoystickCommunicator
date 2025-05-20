@@ -7,7 +7,7 @@ import sys
 import os
 import math
 
-# Importiere die WheelchairControlReal Klasse und Enums
+# Importiere die WheelchairControlReal Klasse und Enumsh
 try:
     # Stelle sicher, dass dieser Import auf deine tatsächliche Datei zeigt
     # und dass diese Datei die notwendigen Definitionen enthält.
@@ -284,7 +284,7 @@ class GamepadController:
                 self._trigger_pressed_rt = rt_is_pressed_now
                 self._trigger_pressed_lt = lt_is_pressed_now
 
-                self.wheelchair.heartbeat()  # Methode in WheelchairControlReal muss heartbeat() heißen
+                self.wheelchair.send_rlink_heartbeat()  # Methode in WheelchairControlReal muss heartbeat() heißen
                 time.sleep(LOOP_CONTROL_SLEEP)
         except Exception as e:
             print(f"Fehler in Gamepad Control Loop: {e}", file=sys.stderr)
