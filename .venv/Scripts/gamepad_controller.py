@@ -11,7 +11,7 @@ try:
         WheelchairControlReal, RLinkError,
         RLinkLight, RLinkAxisId, RLinkAxisDir,
         SEAT_TILT_AXIS_ID, #SEAT_HEIGHT_AXIS_ID,  # Importiere die Achsen-IDs
-        TILT_THRESHOLD_NORMALIZED, HEIGHT_THRESHOLD_NORMALIZED
+        TILT_THRESHOLD_NORMALIZED#, HEIGHT_THRESHOLD_NORMALIZED
     )
 except ImportError as e:
     print(f"Fehler: wheelchair_control_module.py oder Inhalt nicht gefunden: {e}", file=sys.stderr)
@@ -218,14 +218,14 @@ class GamepadController:
                     self.wheelchair.set_direction((0.0, self.right_y))
 
                 # 3. Sitzhöhe (Rechter Stick X, wenn Modus via RB aktiv)
-                if self._gp_height_active:  # Modus wird durch RB im Event-Thread umgeschaltet
+                '''if self._gp_height_active:  # Modus wird durch RB im Event-Thread umgeschaltet
                     height_dir = RLinkAxisDir.NONE
                     if self.right_x > HEIGHT_THRESHOLD_NORMALIZED:
                         height_dir = RLinkAxisDir.UP
                     elif self.right_x < -HEIGHT_THRESHOLD_NORMALIZED:
                         height_dir = RLinkAxisDir.DOWN
                     self.wheelchair.adjust_seat_height(height_dir)  # Rufe neue Methode auf
-
+'''
                 # 4. Gänge (Trigger) - mit Flankenerkennung
                 rt_is_pressed_now = self.rt_value > TRIGGER_THRESHOLD
                 lt_is_pressed_now = self.lt_value > TRIGGER_THRESHOLD
