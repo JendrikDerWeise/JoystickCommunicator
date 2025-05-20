@@ -79,23 +79,36 @@ class GamepadController:
         self._gp_kantelung_active = False
         self._gp_height_active = False
 
+        # Innerhalb der Klasse GamepadController
     def _find_gamepad(self):
-        # ... (Code aus keyboard_control_app_v2.py/_find_keyboard_device,
-        #      angepasst für Gamepad-Capabilities, siehe Antwort #41) ...
         print("Suche nach Gamepad...")
         devices = [InputDevice(path) for path in list_devices()]
         for device in devices:
             cap = device.capabilities(verbose=False)
+            # Prüfe auf typische Gamepad-Merkmale:
+            # - Vorhandensein von EV_ABS (Analogachsen)
+            # - Vorhandensein von EV_KEY (Buttons)
+            # - Vorhandensein der linken Stick-Achsen (X und Y)
+            # - Vorhandensein von mindestens EINEM typischen Gamepad-Button (z.B. BTN_SOUTH)
             if ecodes.EV_ABS in cap and ecodes.EV_KEY in cap:
-                abs_axes = cap.get(ecodes.EV_ABS, [])  # Sicherer Zugriff
-                keys = cap.get(ecodes.EV_KEY, [])  # Sicherer Zugriff
-                has_sticks = (ABS_LEFT_X in abs_axes and ABS_LEFT_Y in abs_axes and
-                              ABS_RIGHT_X in abs_axes and ABS_RIGHT_Y in abs_axes)
-                has_buttons = (BTN_HORN in keys and BTN_KANTELUNG_MODE in keys)  # Mindestprüfung
-                if has_sticks and has_buttons:
+                abs_axes = cap.get(ecodes.EV_ABS, [])
+                keys = cap.get(ecodes.EV_KEY, [])
+                has_left_stick = (ABS_LEFT_X in abs_axes and ABS_LEFT_Y in abs_axes)
+                # Prüfe auf EINEN der von uns gemappten Haupt-Aktionsbuttons
+                    # Oder einen sehr generischen Gamepad-Button wie BTN_GAMEPAD oder BTN_TRIGGER
+                has_some_button = (BTN_HORN in keys or  # Einer unserer gemappten Buttons
+                                   ecodes.BTN_SOUTH in keys or  # Generisches Kreuz/A
+                                   ecodes.BTN_A in keys or  # Alternativer Name für Kreuz/A
+                                   ecodes.BTN_TRIGGER in keys)  # Generischer Trigger-Button
+                if has_left_stick and has_some_button:
+                    # Zusätzlicher Check für den Produktnamen, falls möglich und sinnvoll
+                        # Oft enthalten Controller "Controller", "Gamepad", "Joystick" im Namen
+                        # if "controller" in device.name.lower() or "gamepad" in device.name.lower():
                     print(f"Gamepad gefunden: {device.path} ({device.name})")
                     return device.path
-        print("Kein passendes Gamepad gefunden.", file=sys.stderr)
+        print(
+            "WARNUNG: Kein passendes Gamepad gefunden. Stelle sicher, dass es verbunden ist und die Rechte stimmen.",
+            file=sys.stderr)
         return None
 
     def _normalize_axis(self, value, min_val, max_val, deadzone=JOYSTICK_DEADZONE):
@@ -264,24 +277,32 @@ class GamepadController:
         print("Gamepad control loop finished.")
 
     def start(self):
+        """Startet die Gamepad-Verarbeitungs-Threads."""
         if self.event_thread and self.event_thread.is_alive():
             print("Gamepad-Threads laufen bereits.");
-            return False
+            return False  # Threads laufen schon
 
         self.quit_event.clear()
-        self.event_thread = threading.Thread(target=self._event_thread_func, daemon=True)
-        self.control_thread = threading.Thread(target=self._control_loop_thread_func, daemon=True)
-
+        self.event_thread = threading.Thread(target=self._event_thread_func, name="GamepadEventThread", daemon=True)
         self.event_thread.start()
-        time.sleep(0.5)  # Zeit für Gerätefindung
-        if self.quit_event.is_set():  # Wenn Event-Thread beim Start fehlschlägt
-            print("Fehler: Gamepad Event-Thread konnte nicht gestartet werden.", file=sys.stderr)
-            return False
 
+        time.sleep(0.5)  # Gib dem Event-Thread etwas Zeit, das Gerät zu finden/öffnen
+
+        if self.quit_event.is_set() or not self.event_thread.is_alive():  # Prüfen, ob Event-Thread korrekt gestartet ist
+            print("Fehler: Gamepad Event-Thread konnte nicht initialisiert werden oder wurde sofort beendet.",
+                  file=sys.stderr)
+            # Stelle sicher, dass der Thread auch wirklich beendet wird, falls er noch minimal lief
+            if self.event_thread.is_alive():
+                self.event_thread.join(timeout=0.2)
+            return False  # Signalisiere Fehler beim Starten
+
+        # Starte den Control-Thread nur, wenn der Event-Thread erfolgreich gestartet ist
+        self.control_thread = threading.Thread(target=self._control_loop_thread_func, name="GamepadControlThread",
+                                               daemon=True)
         self.control_thread.start()
+
         print("Gamepad Event- und Control-Threads gestartet.")
         return True
-
     def stop(self):
         print("GamepadController wird gestoppt...")
         self.quit_event.set()
