@@ -30,6 +30,8 @@ wheelchair = WheelchairControlReal()
 CONFIG_TRIGGER_FILE = "send_ml2_config_trigger.flag" # Wie in app.py definiert
 last_config_send_time = 0 # Zeitstempel des letzten Config-Sendens
 
+JOYSTICK_VISIBILITY_TRIGGER_FILE = "/tmp/joystick_visibility_trigger.txt"
+
 def is_little_endian():
     """Überprüft, ob das System Little-Endian ist."""
     return sys.byteorder == 'little'
@@ -283,6 +285,28 @@ def run_server():
                         last_rlink_heartbeat_send = time.time()
                     else:
                         print("Konnte RLink Heartbeat nicht senden, möglicherweise Verbindungsproblem.")
+
+                if os.path.exists(JOYSTICK_VISIBILITY_TRIGGER_FILE):
+                    try:
+                        print(f"Trigger-Datei '{JOYSTICK_VISIBILITY_TRIGGER_FILE}' gefunden.")
+                        if publisher_socket and not publisher_socket.closed:
+                            print("Sende 'joystick_toggle_visibility' an ML2...")
+                            publisher_socket.send_multipart([b"joystick_toggle_visibility", b"toggle"])
+                            # Erfolgsmeldung oder weitere Verarbeitung
+                        else:
+                            print("Fehler: ZMQ Publisher-Socket nicht bereit für Joystick-Toggle.", file=sys.stderr)
+
+                        # Trigger-Datei löschen, um erneutes Ausführen zu verhindern
+                        try:
+                            os.remove(JOYSTICK_VISIBILITY_TRIGGER_FILE)
+                            print(f"Trigger-Datei '{JOYSTICK_VISIBILITY_TRIGGER_FILE}' gelöscht.")
+                        except OSError as e_remove:
+                            print(
+                                f"Fehler beim Löschen der Trigger-Datei '{JOYSTICK_VISIBILITY_TRIGGER_FILE}': {e_remove}",
+                                file=sys.stderr)
+                    except Exception as e_trigger:
+                        print(f"Fehler bei der Verarbeitung der Joystick-Sichtbarkeits-Trigger-Datei: {e_trigger}",
+                              file=sys.stderr)
 
                 if os.path.exists(CONFIG_TRIGGER_FILE):
                     try:

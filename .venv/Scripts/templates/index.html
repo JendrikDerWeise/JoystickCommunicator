@@ -10,6 +10,7 @@
         #message { margin-top: 10px; font-weight: bold; }
         .error {color: red;}
         .success {color: green;}
+        .warning {color: orange;}
 
         .config-button-link {
             position: fixed; /* Positioniert relativ zum Browserfenster */
@@ -60,6 +61,13 @@
         .server_controls .stop-button:hover {
             background-color: #c82333;
         }
+        .server-controls .joystick-toggle-button {
+            background-color: #ffc107; /* Gelb als Beispiel */
+            color: #212529;
+        }
+        .server-controls .joystick-toggle-button:hover {
+            background-color: #e0a800;
+        }
     </style>
 </head>
 <body>
@@ -75,6 +83,14 @@
         </form>
     </div>
     <h1>Magic Leap 2 Dateneingabe</h1>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
 
     <form id="myForm">
         <label for="language">Language:</label>

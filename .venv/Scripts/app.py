@@ -482,6 +482,36 @@ def zmq_server_stop():
     flash(message, category)
     return redirect(url_for('index'))
 
+
+@app.route('/toggle_joystick', methods=['POST'])
+def toggle_joystick_visibility_route():
+    action_message = "Signal zum Umschalten der Joystick-Sichtbarkeit wird angefordert..."
+    category = "info"
+    print(f"Web-Button: {action_message}")  # Serverseitiges Logging
+
+    try:
+        # Erstelle die Trigger-Datei (Inhalt ist hier nicht so wichtig, Existenz reicht)
+        with open(JOYSTICK_VISIBILITY_TRIGGER_FILE, "w") as f:
+            f.write(str(time.time()))  # Schreibe Zeitstempel als Inhalt, um Modifikation sicherzustellen
+
+        message = "Trigger-Datei für Joystick-Sichtbarkeit erstellt."
+        category = "success"
+        flash(message, category)
+        print(message)
+
+    except IOError as e:
+        message = f"Fehler beim Erstellen der Trigger-Datei '{JOYSTICK_VISIBILITY_TRIGGER_FILE}': {e}"
+        category = "error"
+        print(message, file=sys.stderr)
+        flash(message, category)
+    except Exception as e:
+        message = f"Unerwarteter Fehler beim Trigger für Joystick-Sichtbarkeit: {str(e)}"
+        category = "error"
+        print(message, file=sys.stderr)
+        flash(message, category)
+
+    return redirect(url_for('index'))  # Leite zurück zur Hauptseite
+
 # --- ENDE Routen ---
 
 
