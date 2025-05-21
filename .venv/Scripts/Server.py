@@ -278,6 +278,17 @@ def run_server():
         current_ml_x = 0.0
         current_ml_y = 0.0
 
+        # --- NEU: Initiale Sequenz zum "Aufwecken" des RLink, wenn kein Gamepad aktiv ---
+        if wheelchair and (not gamepad_ctrl or (gamepad_ctrl and gamepad_ctrl.quit_event.is_set())):
+            print("DEBUG: Sende initiale Heartbeat/SetDirection(0,0) Sequenz für ML2-Alleinbetrieb...")
+            for _ in range(5):  # Sende es ein paar Mal, um sicherzugehen
+                if hasattr(wheelchair, 'heartbeat'):
+                    wheelchair.heartbeat()
+                wheelchair.set_direction((0.0, 0.0))  # Wichtig: Rampe in WheelchairControlReal wird dies verarbeiten
+                time.sleep(0.02)  # Kurze Pause, ähnlich wie im Gamepad-Loop
+            print("DEBUG: Initiale Sequenz beendet.")
+        # --- ENDE NEU ---
+
         while True:  # Innere ZMQ-Kommunikationsschleife
             try:
                 current_time = time.time()
@@ -365,7 +376,7 @@ def run_server():
                 gamepad_is_active_and_controlling = gamepad_ctrl and not gamepad_ctrl.quit_event.is_set()
 
                 if wheelchair:
-                    # RLink Heartbeat IMMER senden
+                    # RLink Heartbeat IMMER senden, direkt vor dem Bewegungsbefehl
                     if hasattr(wheelchair, 'heartbeat'):
                         wheelchair.heartbeat()
 
