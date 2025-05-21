@@ -131,7 +131,7 @@ def get_magic_leap_ip_adb():  # Deine ursprüngliche, funktionierende Version
         return None
 
 
-def send_pc_ip_and_port_to_ml(ml_ip, pc_ip_for_ml, port_for_ml):
+def send_pc_ip_and_port_to_ml(pc_ip_for_ml, port_for_ml):
     if not pc_ip_for_ml:
         print("[ZMQ-Server] Fehler: Keine PC-IP zum Senden an ML2 vorhanden.", file=sys.stderr)
         return False
@@ -244,7 +244,7 @@ def run_server():
             current_subscriber_socket.setsockopt(zmq.RCVTIMEO, INITIAL_CONNECTION_TIMEOUT * 1000)
             subscriber_socket_from_ml = current_subscriber_socket
 
-            send_pc_ip_and_port(magic_leap_ip, pc_port_for_ml)
+            send_pc_ip_and_port_to_ml(magic_leap_ip, pc_port_for_ml)
         except Exception as e:
             print(f"[ZMQ-Server] Fehler im ZMQ Socket Setup: {e}", file=sys.stderr)
             if current_publisher_socket: current_publisher_socket.close(linger=0)
