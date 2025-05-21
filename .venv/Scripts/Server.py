@@ -246,7 +246,7 @@ def run_server():
             if current_publisher_socket_to_ml:  current_publisher_socket_to_ml.close(linger=0)
             publisher_socket_to_ml = None;
             subscriber_socket_from_ml = None
-            time.sleep(RECONNECT_INTERVAL);
+            time.sleep(RECONNECT_INTERVAL_ZMQ);
             continue
         except Exception as e_setup:
             print(f"Allgemeiner Fehler im Socket Setup: {e_setup}")
@@ -254,7 +254,7 @@ def run_server():
             if current_publisher_socket_to_ml:  current_publisher_socket_to_ml.close(linger=0)
             publisher_socket_to_ml = None;
             subscriber_socket_from_ml = None
-            time.sleep(RECONNECT_INTERVAL);
+            time.sleep(RECONNECT_INTERVAL_ZMQ);
             continue
 
         print("Warte auf READY-Signal von ML2...")
@@ -295,7 +295,7 @@ def run_server():
             print("Setup der ML2-Verbindung nicht erfolgreich, starte ZMQ-Teil neu...")
             if subscriber_socket_from_ml: subscriber_socket_from_ml.close(linger=0); subscriber_socket_from_ml = None
             if publisher_socket_to_ml:  publisher_socket_to_ml.close(linger=0);  publisher_socket_to_ml = None
-            time.sleep(RECONNECT_INTERVAL);
+            time.sleep(RECONNECT_INTERVAL_ZMQ);
             continue
 
         print("Beginne mit der Hauptkommunikation...")
@@ -398,7 +398,7 @@ def run_server():
                 # --- ENDE NEU ---
 
                 # --- Heartbeat-Timeout-Überprüfung (von ML2) ---
-                if time.time() - last_heartbeat_from_ml > RECONNECT_INTERVAL:
+                if time.time() - last_heartbeat_from_ml > RECONNECT_INTERVAL_ZMQ:
                     print("Heartbeat-Timeout von ML2!")
                     break
                 # --- Prüfen, ob Gamepad-Controller beendet wurde ---
@@ -416,7 +416,7 @@ def run_server():
         print("ZMQ Kommunikationsschleife beendet. Starte ZMQ-Teil neu...")
         if subscriber_socket_from_ml: subscriber_socket_from_ml.close(linger=0); subscriber_socket_from_ml = None
         if publisher_socket_to_ml:  publisher_socket_to_ml.close(linger=0);  publisher_socket_to_ml = None
-        time.sleep(RECONNECT_INTERVAL)
+        time.sleep(RECONNECT_INTERVAL_ZMQ)
 
 
 # --- Programmstart ---
