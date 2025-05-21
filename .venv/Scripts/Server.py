@@ -31,6 +31,17 @@ CONFIG_TRIGGER_FILE = "send_ml2_config_trigger.flag" # Wie in app.py definiert
 last_config_send_time = 0 # Zeitstempel des letzten Config-Sendens
 
 JOYSTICK_VISIBILITY_TRIGGER_FILE = "/tmp/joystick_visibility_trigger.txt"
+GAMEPAD_MODE_TRIGGER_FILE = "/tmp/gamepad_mode_trigger.txt"
+gamepad_control_is_active_by_trigger = False
+
+try:
+    from gamepad_controller import GamepadController  # Annahme: gamepad_controller.py ist im selben Verzeichnis
+except ImportError as e:
+    print(f"Fehler: gamepad_controller.py nicht gefunden: {e}", file=sys.stderr)
+    GamepadController = None  # Ermöglicht Start auch ohne Gamepad-Modul
+    print("WARNUNG: Gamepad-Steuerung wird nicht verfügbar sein.")
+
+gamepad_ctrl: GamepadController | None = None
 
 def is_little_endian():
     """Überprüft, ob das System Little-Endian ist."""
@@ -166,6 +177,53 @@ def send_pc_ip_and_port(magic_leap_ip, port):
     except Exception as e:
         print(f"Fehler beim Schreiben/Kopieren der IP-Adresse und des Ports: {e}")
         return False
+
+def process_gamepad_mode_trigger():
+    global gamepad_ctrl, gamepad_control_is_active_by_trigger, wheelchair
+
+    if os.path.exists(GAMEPAD_MODE_TRIGGER_FILE):
+        try:
+            with open(GAMEPAD_MODE_TRIGGER_FILE, "r") as f:
+                content = f.read().strip()
+            command_part = content.split(":")[0]
+
+            if command_part == "ENABLE_GAMEPAD":
+                if GamepadController and (gamepad_ctrl is None or gamepad_ctrl.quit_event.is_set()):
+                    print("[ZMQ-Server] Aktiviere Gamepad-Steuerung via Trigger...")
+                    gamepad_ctrl = GamepadController(wheelchair)
+                    if not gamepad_ctrl.start():
+                        print("[ZMQ-Server] WARNUNG: GamepadController konnte nicht gestartet werden.", file=sys.stderr)
+                        gamepad_ctrl = None
+                        gamepad_control_is_active_by_trigger = False
+                    else:
+                        print("[ZMQ-Server] GamepadController erfolgreich gestartet.")
+                        gamepad_control_is_active_by_trigger = True
+                elif gamepad_ctrl and not gamepad_ctrl.quit_event.is_set():
+                    print("[ZMQ-Server] Gamepad-Steuerung ist bereits aktiv.")
+                    gamepad_control_is_active_by_trigger = True
+                else:
+                    print("[ZMQ-Server] GamepadController Modul nicht geladen, kann nicht aktiviert werden.")
+                    gamepad_control_is_active_by_trigger = False
+
+            elif command_part == "DISABLE_GAMEPAD":
+                if gamepad_ctrl and not gamepad_ctrl.quit_event.is_set():
+                    print("[ZMQ-Server] Deaktiviere Gamepad-Steuerung via Trigger...")
+                    gamepad_ctrl.stop()
+                    gamepad_ctrl = None
+                    print("[ZMQ-Server] GamepadController gestoppt.")
+                gamepad_control_is_active_by_trigger = False
+
+            os.remove(GAMEPAD_MODE_TRIGGER_FILE)
+            print(
+                f"[ZMQ-Server] Gamepad-Modus-Trigger verarbeitet. Web-Schalter-Status: {'AN' if gamepad_control_is_active_by_trigger else 'AUS'}")
+            # Sende den neuen Status an die ML2, damit sie es ggf. anzeigen kann
+            if publisher_socket and not publisher_socket.closed:
+                publisher_socket.send_multipart(
+                    [b"gamepad_status", to_network_order(gamepad_control_is_active_by_trigger, '?')])
+
+
+        except Exception as e_gp_trigger:
+            print(f"[ZMQ-Server] Fehler Verarbeitung Gamepad-Modus-Trigger: {e_gp_trigger}", file=sys.stderr)
 
 def run_server():
     """Hauptfunktion des Servers."""
