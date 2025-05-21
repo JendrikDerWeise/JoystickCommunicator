@@ -434,6 +434,7 @@ def run_server():
                             current_ml_x = x  # Aktualisiere immer die zuletzt bekannten ML2-Werte
                             current_ml_y = y
                             ml_joystick_command_received_this_cycle = True
+                            wheelchair.set_direction((current_ml_x, current_ml_y))
                         elif topic == b"gear":
                             received_value = from_network_order(message, '?')
                             actual_gear = wheelchair.set_gear(received_value)
