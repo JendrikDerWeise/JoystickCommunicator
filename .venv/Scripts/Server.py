@@ -275,8 +275,8 @@ def run_server():
         print("Beginne Hauptkommunikation mit ML2...")
         last_heartbeat_from_ml = time.time()
         last_heartbeat_send_to_ml = 0
-        current_ml_x = 0.0  # Letzte bekannte X-Position von ML2
-        current_ml_y = 0.0  # Letzte bekannte Y-Position von ML2
+        current_ml_x = 0.0
+        current_ml_y = 0.0
 
         while True:  # Innere ZMQ-Kommunikationsschleife
             try:
@@ -286,12 +286,6 @@ def run_server():
                         current_time - last_heartbeat_send_to_ml > HEARTBEAT_INTERVAL_TO_ML:
                     publisher_socket_to_ml.send_multipart([b"heartbeat", b""])
                     last_heartbeat_send_to_ml = current_time
-
-                # --- Heartbeat ZUM Rollstuhl(RLink) ---
-                # Wird IMMER von dieser Schleife aufgerufen, wenn wc_instance existiert.
-                # Der GamepadController sendet es in seinem Thread zusätzlich.
-                if wheelchair and hasattr(wheelchair, 'heartbeat'):
-                    wheelchair.heartbeat()
 
                 # --- Trigger-Dateien prüfen ---
                 if publisher_socket_to_ml and not publisher_socket_to_ml.closed:
@@ -326,7 +320,6 @@ def run_server():
                         publisher_socket_to_ml.send_multipart([b"topic_float", float_value])
 
                 # --- Nachrichten von ML2 empfangen ---
-                # ml_joystick_command_received = False # Nicht mehr benötigt
                 try:
                     if subscriber_socket_from_ml and not subscriber_socket_from_ml.closed and \
                             subscriber_socket_from_ml.poll(timeout=10):
@@ -337,12 +330,10 @@ def run_server():
                         elif topic == b"joystickPos":
                             x = from_network_order(message[0:4], 'f')
                             y = from_network_order(message[4:8], 'f')
-                            current_ml_x = x  # Aktualisiere immer die zuletzt bekannten ML2-Werte
+                            current_ml_x = x
                             current_ml_y = y
-                            # Der Befehl wird unten gesendet, wenn kein Gamepad aktiv ist,
-                            # oder wenn Gamepad aktiv ist, wird der Gamepad-Wert gesendet.
-                            # Die direkte Weiterleitung hier entfällt, um Konflikte zu vermeiden
-                            # und die "letzter gewinnt"-Logik durch die kontinuierliche Sendung unten zu steuern.
+                            # Der eigentliche wheelchair.set_direction Aufruf für ML2
+                            # erfolgt jetzt im Block weiter unten, wenn kein Gamepad aktiv ist.
                         elif topic == b"gear":
                             if wheelchair:
                                 received_value = from_network_order(message, '?')
@@ -372,17 +363,22 @@ def run_server():
                 except zmq.error.Again:
                     pass
 
-                # --- KONTINUIERLICHE STEUERUNG DURCH ML2, WENN KEIN GAMEPAD AKTIV ---
-                # Wenn kein Gamepad-Controller aktiv ist (oder beendet wurde),
-                # sende die zuletzt bekannten ML2-Joystick-Werte (oder 0,0 initial)
-                # in *jedem* Durchlauf dieser Schleife.
-                gamepad_is_active_and_controlling = gamepad_ctrl and not gamepad_ctrl.quit_event.is_set()
+                # --- STEUERLOGIK UND RLINK HEARTBEAT ---
+                gamepad_is_active = gamepad_ctrl and not gamepad_ctrl.quit_event.is_set()
 
-                if wheelchair and not gamepad_is_active_and_controlling:
-                    # print(f"DEBUG: ML2-Only - Sende ({current_ml_x}, {current_ml_y})") # DEBUG
-                    wheelchair.set_direction((current_ml_x, current_ml_y))
-                # Wenn Gamepad aktiv ist, sendet der GamepadController.set_direction() in seinem eigenen Thread.
-                # --- ENDE KONTINUIERLICHE STEUERUNG ---
+                if wheelchair:
+                    # RLink Heartbeat IMMER senden, wenn wheelchair existiert
+                    if hasattr(wheelchair, 'heartbeat'):
+                        wheelchair.heartbeat()
+
+                    # Wenn KEIN Gamepad aktiv ist, verwende die ML2 Joystick-Werte
+                    if not gamepad_is_active:
+                        # print(f"DEBUG: ML2-Only - Sende ({current_ml_x}, {current_ml_y}) an RLink") # DEBUG
+                        wheelchair.set_direction((current_ml_x, current_ml_y))
+                    # Wenn das Gamepad aktiv ist, sendet der GamepadController.py
+                    # in seinem eigenen Thread wheelchair.set_direction() und wheelchair.heartbeat().
+                    # Der letzte Befehl an wheelchair.set_direction() gewinnt.
+                # --- ENDE STEUERLOGIK ---
 
                 if time.time() - last_heartbeat_from_ml > RECONNECT_INTERVAL_ZMQ:
                     print("Heartbeat-Timeout von ML2!")
@@ -390,9 +386,9 @@ def run_server():
                 if gamepad_ctrl and gamepad_ctrl.quit_event.is_set():
                     print("Gamepad-Controller hat Beenden signalisiert. Starte ZMQ-Teil neu.")
                     gamepad_ctrl.stop()
-                    gamepad_ctrl = None
+                    gamepad_ctrl = None  # Erlaube erneute Initialisierung oben in der äußeren Schleife
                     break
-                time.sleep(0.01)
+                time.sleep(0.01)  # Kurze Pause für die ZMQ-Hauptschleife
             except zmq.ZMQError as e:
                 print(f"Fehler in der ZMQ-Kommunikation: {e}"); break
             except Exception as e:
@@ -428,3 +424,4 @@ if __name__ == "__main__":
             print("Schließe globalen ZeroMQ-Kontext.")
             context.term()
         print("Hauptserver beendet.")
+
