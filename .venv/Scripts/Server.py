@@ -259,7 +259,7 @@ def run_server():
         current_local_publisher_socket = None
         pc_port = None
 
-        process_gamepad_mode_trigger()  # Prüfe Web-Interface Wunsch für Gamepad
+        #process_gamepad_mode_trigger()  # Prüfe Web-Interface Wunsch für Gamepad
 
         magic_leap_ip = get_magic_leap_ip_adb()
         if not magic_leap_ip:
@@ -360,7 +360,7 @@ def run_server():
         while True:  # Hauptkommunikationsschleife
             try:
                 current_time = time.time()
-                process_gamepad_mode_trigger()  # Prüfe Web-Interface Wunsch für Gamepad auch hier
+                #process_gamepad_mode_trigger()  # Prüfe Web-Interface Wunsch für Gamepad auch hier
 
                 # --- Heartbeat AN ML2 senden (dein Originalcode) ---
                 if current_time - last_heartbeat_send_to_ml > HEARTBEAT_INTERVAL:  # Nutze dein HEARTBEAT_INTERVAL
