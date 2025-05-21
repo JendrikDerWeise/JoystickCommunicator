@@ -332,6 +332,7 @@ def run_server():
 
         while True:  # Hauptkommunikationsschleife
             try:
+                process_gamepad_mode_trigger()
                 # --- Sende Heartbeat (alle 2 Sekunden) ---
                 if time.time() - last_heartbeat_send > HEARTBEAT_INTERVAL:
                     publisher_socket.send_multipart([b"heartbeat", b""])
