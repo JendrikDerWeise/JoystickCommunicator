@@ -374,7 +374,7 @@ def run_server():
                 gamepad_is_currently_active = gamepad_ctrl and not gamepad_ctrl.quit_event.is_set()
                 if wheelchair and hasattr(wheelchair, 'heartbeat'):
                     if not gamepad_is_currently_active or not gamepad_control_is_active_by_trigger:
-                        # print("DEBUG: Server.py sendet RLink Heartbeat") # Für Debugging
+                        print("DEBUG: Server.py sendet RLink Heartbeat") # Für Debugging
                         wheelchair.heartbeat()
 
                 # --- Trigger-Dateien für andere Befehle prüfen (dein Originalcode) ---
@@ -468,13 +468,13 @@ def run_server():
                 # UND der GamepadController tatsächlich läuft (nicht None und quit_event nicht gesetzt),
                 # dann hat das Gamepad die Steuerung (seine Threads senden die Befehle).
                 # Ansonsten steuert die ML2.
-                gamepad_is_currently_active_and_controlling = gamepad_ctrl and not gamepad_ctrl.quit_event.is_set()
+                #gamepad_is_currently_active_and_controlling = gamepad_ctrl and not gamepad_ctrl.quit_event.is_set()
 
-                if not gamepad_control_is_active_by_trigger or not gamepad_is_currently_active:
+                '''if not gamepad_control_is_active_by_trigger or not gamepad_is_currently_active:
                     # Gamepad ist NICHT aktiv oder NICHT vom Web gewünscht -> ML2 steuert
                     # Sende die zuletzt bekannten/aktuellen ML2-Werte kontinuierlich
                     # print(f"DEBUG: ML2 steuert mit ({current_ml_x}, {current_ml_y})")
-                    wheelchair.set_direction((current_ml_x, current_ml_y))
+                    wheelchair.set_direction((current_ml_x, current_ml_y))'''
                 # else:
                 # print("DEBUG: Gamepad steuert (oder sollte steuern).")
                 # Gamepad ist aktiv und vom Webinterface gewünscht.
