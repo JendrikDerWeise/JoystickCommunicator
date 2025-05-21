@@ -364,17 +364,17 @@ def run_server():
                     pass
 
                 # --- STEUERLOGIK UND RLINK HEARTBEAT ---
-                gamepad_is_active_and_controlling = gamepad_ctrl and not gamepad_ctrl.quit_event.is_set()
+                gamepad_is_active = gamepad_ctrl and not gamepad_ctrl.quit_event.is_set()
 
                 if wheelchair:
-                    # RLink Heartbeat IMMER senden, wenn wheelchair existiert
+                    # RLink Heartbeat IMMER senden, direkt vor dem Bewegungsbefehl
                     if hasattr(wheelchair, 'heartbeat'):
-                        wheelchair.heartbeat()  # Dies ist die Methode aus WheelchairControlReal
+                        wheelchair.heartbeat()
 
-                    # Wenn KEIN Gamepad aktiv ist, verwende die zuletzt von ML2
+                        # Wenn KEIN Gamepad aktiv ist, verwende die zuletzt von ML2
                     # empfangenen Joystick-Werte (oder 0,0 initial).
                     # Dieser Block sendet nun kontinuierlich.
-                    if not gamepad_is_active_and_controlling:
+                    if not gamepad_is_active:
                         # print(f"DEBUG: ML2-Only - Sende ({current_ml_x}, {current_ml_y}) an RLink") # DEBUG
                         wheelchair.set_direction((current_ml_x, current_ml_y))
                     # Wenn das Gamepad aktiv ist, sendet der GamepadController.py
