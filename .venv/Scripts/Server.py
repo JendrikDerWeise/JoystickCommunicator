@@ -332,8 +332,8 @@ def run_server():
                             y = from_network_order(message[4:8], 'f')
                             current_ml_x = x
                             current_ml_y = y
-                            # Der eigentliche wheelchair.set_direction Aufruf für ML2
-                            # erfolgt jetzt im Block weiter unten, wenn kein Gamepad aktiv ist.
+                            # Der wheelchair.set_direction Aufruf für ML2 erfolgt jetzt
+                            # im Steuerlogik-Block unten, wenn KEIN Gamepad aktiv ist.
                         elif topic == b"gear":
                             if wheelchair:
                                 received_value = from_network_order(message, '?')
@@ -364,20 +364,22 @@ def run_server():
                     pass
 
                 # --- STEUERLOGIK UND RLINK HEARTBEAT ---
-                gamepad_is_active = gamepad_ctrl and not gamepad_ctrl.quit_event.is_set()
+                gamepad_is_active_and_controlling = gamepad_ctrl and not gamepad_ctrl.quit_event.is_set()
 
                 if wheelchair:
                     # RLink Heartbeat IMMER senden, wenn wheelchair existiert
                     if hasattr(wheelchair, 'heartbeat'):
-                        wheelchair.heartbeat()
+                        wheelchair.heartbeat()  # Dies ist die Methode aus WheelchairControlReal
 
-                    # Wenn KEIN Gamepad aktiv ist, verwende die ML2 Joystick-Werte
-                    if not gamepad_is_active:
+                    # Wenn KEIN Gamepad aktiv ist, verwende die zuletzt von ML2
+                    # empfangenen Joystick-Werte (oder 0,0 initial).
+                    # Dieser Block sendet nun kontinuierlich.
+                    if not gamepad_is_active_and_controlling:
                         # print(f"DEBUG: ML2-Only - Sende ({current_ml_x}, {current_ml_y}) an RLink") # DEBUG
                         wheelchair.set_direction((current_ml_x, current_ml_y))
                     # Wenn das Gamepad aktiv ist, sendet der GamepadController.py
                     # in seinem eigenen Thread wheelchair.set_direction() und wheelchair.heartbeat().
-                    # Der letzte Befehl an wheelchair.set_direction() gewinnt.
+                    # Der letzte Befehl an wheelchair.set_direction() "gewinnt" durch die häufigen Aufrufe.
                 # --- ENDE STEUERLOGIK ---
 
                 if time.time() - last_heartbeat_from_ml > RECONNECT_INTERVAL_ZMQ:
@@ -386,9 +388,9 @@ def run_server():
                 if gamepad_ctrl and gamepad_ctrl.quit_event.is_set():
                     print("Gamepad-Controller hat Beenden signalisiert. Starte ZMQ-Teil neu.")
                     gamepad_ctrl.stop()
-                    gamepad_ctrl = None  # Erlaube erneute Initialisierung oben in der äußeren Schleife
+                    gamepad_ctrl = None
                     break
-                time.sleep(0.01)  # Kurze Pause für die ZMQ-Hauptschleife
+                time.sleep(0.01)
             except zmq.ZMQError as e:
                 print(f"Fehler in der ZMQ-Kommunikation: {e}"); break
             except Exception as e:
