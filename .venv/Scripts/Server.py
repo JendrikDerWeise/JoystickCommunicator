@@ -371,11 +371,11 @@ def run_server():
                 # --- Heartbeat ZUM Rollstuhl(RLink) ---
                 # Wird vom GamepadController gesendet, wenn dieser aktiv ist.
                 # Ansonsten hier senden, um die Verbindung aufrechtzuerhalten.
-                gamepad_is_currently_active = gamepad_ctrl and not gamepad_ctrl.quit_event.is_set()
-                if wheelchair and hasattr(wheelchair, 'heartbeat'):
-                    if not gamepad_is_currently_active or not gamepad_control_is_active_by_trigger:
-                        print("DEBUG: Server.py sendet RLink Heartbeat") # Für Debugging
-                        wheelchair.heartbeat()
+                #gamepad_is_currently_active = gamepad_ctrl and not gamepad_ctrl.quit_event.is_set()
+                #if wheelchair and hasattr(wheelchair, 'heartbeat'):
+                    #if not gamepad_is_currently_active or not gamepad_control_is_active_by_trigger:
+                        #print("DEBUG: Server.py sendet RLink Heartbeat") # Für Debugging
+                wheelchair.heartbeat()
 
                 # --- Trigger-Dateien für andere Befehle prüfen (dein Originalcode) ---
                 if os.path.exists(JOYSTICK_VISIBILITY_TRIGGER_FILE):
