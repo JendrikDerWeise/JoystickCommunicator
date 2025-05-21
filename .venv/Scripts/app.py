@@ -56,7 +56,7 @@ init_commands_legacy = {
     "kantelungOff": "Sitzk. AUS", "gearUp": "Schneller", "gearDown": "Langsamer",
     "language": "Deutsch"
 }
-
+gamepad_web_switch_enabled = False # Initial auf AUS setzen
 
 # --- Hilfsfunktionen für JSON Konfiguration (generisch) ---
 def load_config(filepath, defaults):

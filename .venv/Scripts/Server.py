@@ -17,20 +17,20 @@ import json  # Wird von WheelchairControlReal intern für Config genutzt
 try:
     from wheelchair_control_module import WheelchairControlReal, RLinkError
 except ImportError as e:
-    print(f"Fehler: wheelchair_control_module.py nicht gefunden: {e}", file=sys.stderr)
+    print(f"[ZMQ-Server] Fehler: wheelchair_control_module.py nicht gefunden: {e}", file=sys.stderr)
     sys.exit(1)
 
 try:
     from gamepad_controller import GamepadController
 except ImportError as e:
-    print(f"Fehler: gamepad_controller.py nicht gefunden: {e}", file=sys.stderr)
-    GamepadController = None  # Erlaube Start ohne Gamepad-Datei
-    print("WARNUNG: Gamepad-Steuerung wird nicht verfügbar sein, da gamepad_controller.py fehlt.")
+    print(f"[ZMQ-Server] Fehler: gamepad_controller.py nicht gefunden: {e}", file=sys.stderr)
+    GamepadController = None
+    print("[ZMQ-Server] WARNUNG: Gamepad-Steuerung wird nicht verfügbar sein.")
 
 # --- Konstanten ---
-HEARTBEAT_INTERVAL_TO_ML = 2
-RECONNECT_INTERVAL_ZMQ = 10
-INITIAL_CONNECTION_TIMEOUT = 30
+HEARTBEAT_INTERVAL_TO_ML = 2  # Sekunden (Heartbeat-Intervall AN DEN *Client* ML2)
+RECONNECT_INTERVAL_ZMQ = 10  # Sekunden (Wartezeit vor ZMQ-Server-Neustart)
+INITIAL_CONNECTION_TIMEOUT = 30  # Sekunden (Timeout für das erste "READY"-Signal)
 
 # --- ZeroMQ-Kontext erstellen (global für dieses Skript) ---
 context = zmq.Context.instance()
@@ -43,14 +43,14 @@ wheelchair: WheelchairControlReal | None = None
 gamepad_ctrl: GamepadController | None = None
 
 # --- Trigger-Dateien (Pfade müssen mit app.py übereinstimmen) ---
-CONFIG_TRIGGER_FILE = "send_ml2_config_trigger.flag"  # Für ML2 Joystick-Einstellungen
+CONFIG_TRIGGER_FILE = "send_ml2_config_trigger.flag"
 JOYSTICK_VISIBILITY_TRIGGER_FILE = "/tmp/joystick_visibility_trigger.txt"
 GAMEPAD_MODE_TRIGGER_FILE = "/tmp/gamepad_mode_trigger.txt"
 last_config_send_time = 0
-gamepad_control_is_active_by_trigger = False  # Interner Zustand basierend auf Trigger-Datei
+gamepad_control_is_active_by_trigger = False  # Gesteuert durch Webinterface-Trigger
 
 
-# --- Netzwerk- und Konvertierungsfunktionen (wie in deinem Original) ---
+# --- Netzwerk- und Konvertierungsfunktionen ---
 def is_little_endian():
     return sys.byteorder == 'little'
 
@@ -135,7 +135,7 @@ def send_pc_ip_and_port_to_ml(ml_ip, pc_ip_for_ml, port_for_ml):
     if not pc_ip_for_ml:
         print("[ZMQ-Server] Fehler: Keine PC-IP zum Senden an ML2 vorhanden.", file=sys.stderr)
         return False
-    temp_file = "pc_ip_port_zmq.txt"  # Eindeutiger Name für ZMQ-Server
+    temp_file = "pc_ip_port_zmq.txt"
     target_path_on_ml = '/storage/emulated/0/Android/data/de.IMC.EyeJoystick/files/'
     adb_command = ['adb', 'push', temp_file, target_path_on_ml]
     try:
@@ -167,7 +167,7 @@ def process_gamepad_mode_trigger():
         try:
             with open(GAMEPAD_MODE_TRIGGER_FILE, "r") as f:
                 content = f.read().strip()
-            command_part = content.split(":")[0]
+            command_part = content.split(":")[0]  # Extrahiere den Befehl (ENABLE_GAMEPAD/DISABLE_GAMEPAD)
 
             if command_part == "ENABLE_GAMEPAD":
                 if GamepadController and (gamepad_ctrl is None or gamepad_ctrl.quit_event.is_set()):
@@ -176,14 +176,14 @@ def process_gamepad_mode_trigger():
                     if not gamepad_ctrl.start():
                         print("[ZMQ-Server] WARNUNG: GamepadController konnte nicht gestartet werden.", file=sys.stderr)
                         gamepad_ctrl = None
-                        gamepad_control_is_active_by_trigger = False
+                        gamepad_control_is_active_by_trigger = False  # Zurücksetzen
                     else:
                         print("[ZMQ-Server] GamepadController erfolgreich gestartet.")
                         gamepad_control_is_active_by_trigger = True
                 elif gamepad_ctrl and not gamepad_ctrl.quit_event.is_set():
                     print("[ZMQ-Server] Gamepad-Steuerung ist bereits aktiv (via Trigger).")
-                    gamepad_control_is_active_by_trigger = True  # Sicherstellen
-                else:  # GamepadController Klasse nicht importiert
+                    gamepad_control_is_active_by_trigger = True
+                else:
                     print("[ZMQ-Server] GamepadController nicht verfügbar, kann nicht aktiviert werden.")
                     gamepad_control_is_active_by_trigger = False
 
@@ -191,15 +191,13 @@ def process_gamepad_mode_trigger():
                 if gamepad_ctrl and not gamepad_ctrl.quit_event.is_set():
                     print("[ZMQ-Server] Deaktiviere Gamepad-Steuerung via Trigger...")
                     gamepad_ctrl.stop()
-                    gamepad_ctrl = None
+                    gamepad_ctrl = None  # Wichtig: Instanz auf None setzen
                     print("[ZMQ-Server] GamepadController gestoppt.")
-                # else:
-                #     print("[ZMQ-Server] Gamepad-Steuerung war nicht aktiv, nichts zu deaktivieren.")
                 gamepad_control_is_active_by_trigger = False
 
             os.remove(GAMEPAD_MODE_TRIGGER_FILE)
             print(
-                f"[ZMQ-Server] Gamepad-Modus-Trigger verarbeitet. Neuer Web-Schalter-Status: {'AN' if gamepad_control_is_active_by_trigger else 'AUS'}")
+                f"[ZMQ-Server] Gamepad-Modus-Trigger verarbeitet. Web-Schalter-Status: {'AN' if gamepad_control_is_active_by_trigger else 'AUS'}")
 
         except Exception as e_gp_trigger:
             print(f"[ZMQ-Server] Fehler Verarbeitung Gamepad-Modus-Trigger: {e_gp_trigger}", file=sys.stderr)
@@ -214,10 +212,7 @@ def run_server():
     global context
     global gamepad_control_is_active_by_trigger
 
-    # GamepadController nur einmal initialisieren, wenn das Skript startet
-    # Dies wird jetzt durch process_gamepad_mode_trigger() gehandhabt
-    # if GamepadController and gamepad_ctrl is None:
-    #     # ... Initialisierung entfernt, da jetzt Trigger-basiert ...
+    # GamepadController wird jetzt durch process_gamepad_mode_trigger() initialisiert/gestoppt
 
     while True:
         print("\n" + "=" * 30 + " ZMQ-SERVERTEIL (NEU)START " + "=" * 30)
@@ -225,8 +220,7 @@ def run_server():
         current_subscriber_socket = None
         pc_port_for_ml = None
 
-        # --- Gamepad-Modus basierend auf Trigger-Datei prüfen/setzen ---
-        process_gamepad_mode_trigger()  # Prüft und startet/stoppt GamepadController
+        process_gamepad_mode_trigger()  # Prüfe Trigger zu Beginn jeder äußeren Schleife
 
         magic_leap_ip = get_magic_leap_ip_adb()
         if not magic_leap_ip:
@@ -271,7 +265,11 @@ def run_server():
                 subscriber_socket_from_ml.setsockopt(zmq.UNSUBSCRIBE, b"READY")
                 subscriber_socket_from_ml.setsockopt(zmq.SUBSCRIBE, b"heartbeat")
                 subscriber_socket_from_ml.setsockopt(zmq.SUBSCRIBE, b"joystickPos")
-                # ... (restliche Subscriptions) ...
+                subscriber_socket_from_ml.setsockopt(zmq.SUBSCRIBE, b"gear")
+                subscriber_socket_from_ml.setsockopt(zmq.SUBSCRIBE, b"lights")
+                subscriber_socket_from_ml.setsockopt(zmq.SUBSCRIBE, b"warn")
+                subscriber_socket_from_ml.setsockopt(zmq.SUBSCRIBE, b"horn")
+                subscriber_socket_from_ml.setsockopt(zmq.SUBSCRIBE, b"kantelung")
                 ready_received = True
                 print(f"[ZMQ-Server] Subscriber (von ML2) verbunden mit tcp://{magic_leap_ip}:{pc_port_for_ml + 1}")
                 subscriber_socket_from_ml.setsockopt(zmq.RCVTIMEO, 1000)
@@ -279,10 +277,12 @@ def run_server():
                 if publisher_socket_to_ml and wheelchair:
                     publisher_socket_to_ml.send_multipart(
                         [b"gear", to_network_order(wheelchair.get_actual_gear(), 'i')])
-                    # ... (Senden anderer initialer Zustände) ...
+                    publisher_socket_to_ml.send_multipart([b"lights", to_network_order(wheelchair.get_lights(), '?')])
+                    publisher_socket_to_ml.send_multipart([b"warn", to_network_order(wheelchair.get_warn(), '?')])
+                    publisher_socket_to_ml.send_multipart(
+                        [b"kantelung", to_network_order(wheelchair.get_kantelung(), '?')])
                     publisher_socket_to_ml.send_multipart(
                         [b"gamepad_status", to_network_order(gamepad_control_is_active_by_trigger, '?')])
-
 
         except zmq.error.Again:
             print("[ZMQ-Server] Timeout beim Warten auf READY von ML2.")
@@ -305,9 +305,7 @@ def run_server():
         while True:  # Innere ZMQ-Kommunikationsschleife
             try:
                 current_time = time.time()
-                # --- Gamepad-Modus basierend auf Trigger-Datei prüfen/setzen ---
-                # Tue dies regelmäßig, um auf Änderungen vom Webinterface zu reagieren
-                process_gamepad_mode_trigger()
+                process_gamepad_mode_trigger()  # Prüfe Trigger auch hier regelmäßig
 
                 # --- Heartbeat AN ML2 senden ---
                 if publisher_socket_to_ml and not publisher_socket_to_ml.closed and \
@@ -325,7 +323,20 @@ def run_server():
                             os.remove(JOYSTICK_VISIBILITY_TRIGGER_FILE)
                         except Exception as e_trig_vis:
                             print(f"[ZMQ-Server] Fehler Trigger JoystickVis: {e_trig_vis}", file=sys.stderr)
-                    # ... (deine CONFIG_TRIGGER_FILE Logik) ...
+                    if os.path.exists(CONFIG_TRIGGER_FILE):
+                        try:
+                            trigger_timestamp = os.path.getmtime(CONFIG_TRIGGER_FILE)
+                            if trigger_timestamp > last_config_send_time:
+                                with open(CONFIG_TRIGGER_FILE, 'r') as f:
+                                    config_json_str = f.read()
+                                if config_json_str:
+                                    print(f"[ZMQ-Server] Sende ML2 Joystick Konfiguration (Trigger)...")
+                                    publisher_socket_to_ml.send_multipart(
+                                        [b"joystick_settings", config_json_str.encode('utf-8')])
+                                    last_config_send_time = trigger_timestamp
+                                os.remove(CONFIG_TRIGGER_FILE)
+                        except Exception as e_cfg_trig:
+                            print(f"[ZMQ-Server] Fehler Trigger Config: {e_cfg_trig}", file=sys.stderr)
 
                 # --- Daten an ML2 senden (Geschwindigkeit) ---
                 if publisher_socket_to_ml and not publisher_socket_to_ml.closed:
@@ -346,47 +357,69 @@ def run_server():
                             y = from_network_order(message[4:8], 'f')
                             current_ml_x = x
                             current_ml_y = y
-                        # ... (Restliche Topic-Verarbeitung: gear, lights, etc.) ...
+                        elif topic == b"gear":
+                            if wheelchair:
+                                received_value = from_network_order(message, '?')
+                                actual_gear = wheelchair.set_gear(received_value)
+                                if publisher_socket_to_ml: publisher_socket_to_ml.send_multipart(
+                                    [b"gear", to_network_order(actual_gear, 'i')])
+                        elif topic == b"lights":
+                            if wheelchair:
+                                wheelchair.set_lights()
+                                if publisher_socket_to_ml: publisher_socket_to_ml.send_multipart(
+                                    [b"lights", to_network_order(wheelchair.get_lights(), '?')])
+                        elif topic == b"warn":
+                            if wheelchair:
+                                wheelchair.set_warn()
+                                if publisher_socket_to_ml: publisher_socket_to_ml.send_multipart(
+                                    [b"warn", to_network_order(wheelchair.get_warn(), '?')])
+                        elif topic == b"horn":
+                            if wheelchair: wheelchair.on_horn(from_network_order(message, '?'))
+                        elif topic == b"kantelung":
+                            if wheelchair:
+                                received_value = from_network_order(message, '?')
+                                wheelchair.on_kantelung(received_value)  # Dies schaltet den Modus in wheelchair
+                                if publisher_socket_to_ml: publisher_socket_to_ml.send_multipart(
+                                    [b"kantelung", to_network_order(wheelchair.get_kantelung(), '?')])
+                        else:
+                            print(f"[ZMQ-Server] Unbekanntes Topic von ML2: {topic}")
                 except zmq.error.Again:
                     pass
 
                 # --- STEUERLOGIK UND RLINK HEARTBEAT ---
-                # GamepadController läuft in eigenen Threads und sendet Befehle, wenn aktiv.
-                # Die Variable gamepad_control_is_active_by_trigger steuert, ob der
-                # GamepadController überhaupt initialisiert/gestartet wird.
+                gamepad_is_actually_running = gamepad_ctrl and not gamepad_ctrl.quit_event.is_set()
 
                 if wheelchair:
-                    # RLink Heartbeat IMMER senden, wenn wheelchair existiert
+                    # RLink Heartbeat IMMER senden, da GamepadController es auch tut
                     if hasattr(wheelchair, 'heartbeat'):
                         wheelchair.heartbeat()
 
-                        # Wenn der Gamepad-Modus NICHT über das Webinterface aktiviert ist
-                    # ODER der GamepadController nicht läuft (z.B. kein Gamepad gefunden),
-                    # dann verwende die ML2 Joystick-Werte.
-                    if not gamepad_control_is_active_by_trigger or \
-                            (gamepad_ctrl is None or gamepad_ctrl.quit_event.is_set()):
+                        # Wenn der Gamepad-Modus NICHT über das Webinterface explizit aktiviert ist
+                    # ODER der GamepadController aus irgendeinem Grund nicht läuft,
+                    # dann steuert die ML2.
+                    if not gamepad_control_is_active_by_trigger or not gamepad_is_actually_running:
                         # print(f"DEBUG: ML2 steuert mit ({current_ml_x}, {current_ml_y})")
                         wheelchair.set_direction((current_ml_x, current_ml_y))
-                    # else: Gamepad ist aktiv und steuert in seinem eigenen Thread
+                    # else: Gamepad ist aktiv und vom Webinterface gewünscht, GamepadController.py sendet Befehle
                 # --- ENDE STEUERLOGIK ---
 
                 if time.time() - last_heartbeat_from_ml > RECONNECT_INTERVAL_ZMQ:
                     print("[ZMQ-Server] Heartbeat-Timeout von ML2!")
                     break
 
-                # Wenn der Gamepad-Controller vom Benutzer am Gamepad beendet wurde
-                if gamepad_ctrl and gamepad_ctrl.quit_event.is_set() and gamepad_control_is_active_by_trigger:
+                # Wenn Gamepad-Modus via Web AN war, aber der Gamepad-Thread sich beendet hat
+                if gamepad_control_is_active_by_trigger and (gamepad_ctrl is None or gamepad_ctrl.quit_event.is_set()):
                     print(
-                        "[ZMQ-Server] Gamepad-Controller wurde beendet (z.B. durch START-Taste). Deaktiviere Web-Schalter.")
-                    gamepad_control_is_active_by_trigger = False  # Setze Web-Schalter zurück
-                    # Sende Status an ML2, dass Gamepad aus ist
+                        "[ZMQ-Server] Gamepad-Controller war gewünscht, ist aber beendet. Versuche Neustart oder deaktiviere.")
+                    if gamepad_ctrl: gamepad_ctrl.stop()  # Alten stoppen, falls noch Referenz da
+                    gamepad_ctrl = None
+                    gamepad_control_is_active_by_trigger = False  # Zurücksetzen, damit ML2 wieder steuert
+                    # Sende Status an ML2, dass Gamepad-Modus aus ist
                     if publisher_socket_to_ml and not publisher_socket_to_ml.closed:
                         publisher_socket_to_ml.send_multipart([b"gamepad_status", to_network_order(False, '?')])
-                    # GamepadController wird oben in der äußeren Schleife ggf. neu gestartet, wenn Trigger kommt
-                    gamepad_ctrl.stop()  # Stoppe ihn hier sauber
-                    gamepad_ctrl = None
+                    # Kein 'break' hier, ML2 soll weiterlaufen
 
-                time.sleep(0.01)
+                time.sleep(0.01)  # Kurze Pause für die ZMQ-Hauptschleife
             except zmq.ZMQError as e:
                 print(f"[ZMQ-Server] Fehler in ZMQ-Kommunikation: {e}"); break
             except Exception as e:
@@ -414,7 +447,6 @@ if __name__ == "__main__":
         if wheelchair:  # Ist global
             wheelchair.shutdown()
 
-        # Globale Sockets hier schließen
         if publisher_socket_to_ml and not publisher_socket_to_ml.closed:
             publisher_socket_to_ml.close(linger=0)
         if subscriber_socket_from_ml and not subscriber_socket_from_ml.closed:
