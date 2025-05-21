@@ -130,7 +130,7 @@ def get_magic_leap_ip_adb():  # Deine ursprüngliche, funktionierende Version
             result = subprocess.run(['adb', 'shell', 'ip', 'route'], capture_output=True, text=True, check=True,
                                     timeout=5)
             for line in result.stdout.splitlines():
-                if "dev mlnet0" or "eth1" in line:
+                if "dev mlnet0" or "eth1" in line:  # Deine ursprüngliche Logik
                     match = re.search(r'src (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', line)
                     if match:
                         ip_address = match.group(1)
@@ -159,10 +159,9 @@ def send_pc_ip_and_port(magic_leap_ip, port):  # Deine ursprüngliche Version
         if not correct_interface_ip:
             print("Keine passende Netzwerkschnittstelle gefunden.")
             return False
-        temp_file = "pc_ip.txt"  # Name geändert zu pc_ip.txt wie in deinem Original
+        temp_file = "pc_ip.txt"
         with open(temp_file, "w") as f:
             f.write(f"{correct_interface_ip}:{port}")
-        # Dein Original-Zielpfad
         target_path_on_ml = '/storage/emulated/0/Android/data/de.IMC.EyeJoystick/files'
         subprocess.run(['adb', 'push', temp_file, target_path_on_ml], check=True, timeout=10)
         print(
@@ -199,29 +198,26 @@ def send_pc_ip_and_port(magic_leap_ip, port):  # Deine ursprüngliche Version
 def run_server():
     """Hauptfunktion des Servers."""
     global magic_leap_ip, last_heartbeat, publisher_socket, subscriber_socket
-    global wheelchair  # Zugriff auf die globale Instanz
-    global gamepad_ctrl  # Zugriff auf die globale Gamepad-Instanz
+    global wheelchair
+    global gamepad_ctrl
     global last_config_send_time
 
-    # --- NEU: GamepadController initialisieren, falls möglich ---
-    if GamepadController and gamepad_ctrl is None:  # Nur wenn Klasse importiert wurde und noch keine Instanz existiert
+    if GamepadController and gamepad_ctrl is None:
         try:
             print("Initialisiere GamepadController...")
-            gamepad_ctrl = GamepadController(wheelchair)  # Übergib die globale wheelchair Instanz
+            gamepad_ctrl = GamepadController(wheelchair)
             if not gamepad_ctrl.start():
                 print("WARNUNG: GamepadController konnte nicht gestartet werden. Läuft ohne Gamepad-Steuerung.",
                       file=sys.stderr)
-                gamepad_ctrl = None  # Setze zurück, falls Start fehlschlägt
+                gamepad_ctrl = None
             else:
                 print("GamepadController erfolgreich gestartet.")
         except Exception as e_gp:
             print(f"FEHLER bei Initialisierung des GamepadControllers: {e_gp}", file=sys.stderr)
             gamepad_ctrl = None
-    # --- ENDE NEU ---
 
-    while True:  # Äußere Schleife für Server-Neustart
+    while True:
         print("Server wird (neu)gestartet...")
-        # Lokale Variablen für Sockets in diesem Durchlauf
         current_subscriber_socket = None
         current_publisher_socket = None
         pc_port = None
@@ -240,14 +236,11 @@ def run_server():
         try:
             current_publisher_socket = context.socket(zmq.PUB)
             pc_port = current_publisher_socket.bind_to_random_port(f"tcp://{pc_ip}")
-            publisher_socket = current_publisher_socket  # Weise globaler Variable zu
+            publisher_socket = current_publisher_socket
             print(f"Publisher Socket (PC) gebunden an {pc_ip}:{pc_port}")
-
             current_subscriber_socket = context.socket(zmq.SUB)
-            # Setze RCVTIMEO hier, bevor connect aufgerufen wird
             current_subscriber_socket.setsockopt(zmq.RCVTIMEO, INITIAL_CONNECTION_TIMEOUT * 1000)
-            subscriber_socket = current_subscriber_socket  # Weise globaler Variable zu
-
+            subscriber_socket = current_subscriber_socket
             if not send_pc_ip_and_port(magic_leap_ip, pc_port):
                 print("Konnte PC-IP und Port nicht an Magic Leap senden. Setze fort...")
         except zmq.ZMQError as e:
@@ -255,10 +248,10 @@ def run_server():
             if current_subscriber_socket: current_subscriber_socket.close(linger=0)
             if current_publisher_socket:  current_publisher_socket.close(linger=0)
             publisher_socket = None;
-            subscriber_socket = None  # Globale Sockets zurücksetzen
+            subscriber_socket = None
             time.sleep(RECONNECT_INTERVAL);
             continue
-        except Exception as e_setup:  # Fange andere Setup-Fehler ab
+        except Exception as e_setup:
             print(f"Allgemeiner Fehler im Socket Setup: {e_setup}")
             if current_subscriber_socket: current_subscriber_socket.close(linger=0)
             if current_publisher_socket:  current_publisher_socket.close(linger=0)
@@ -270,13 +263,12 @@ def run_server():
         print("Warte auf READY-Signal von ML2...")
         ready_received = False
         try:
-            # connect und subscribe hier, NACHDEM der Socket erstellt wurde
             subscriber_socket.connect(f"tcp://{magic_leap_ip}:{pc_port + 1}")
             subscriber_socket.setsockopt(zmq.SUBSCRIBE, b"READY")
-            topic, message = subscriber_socket.recv_multipart()  # Wartet max RCVTIMEO
+            topic, message = subscriber_socket.recv_multipart()
             if topic == b"READY":
                 print("READY empfangen!")
-                subscriber_socket.setsockopt(zmq.UNSUBSCRIBE, b"READY")  # Wichtig!
+                subscriber_socket.setsockopt(zmq.UNSUBSCRIBE, b"READY")
                 subscriber_socket.setsockopt(zmq.SUBSCRIBE, b"heartbeat")
                 subscriber_socket.setsockopt(zmq.SUBSCRIBE, b"joystickPos")
                 subscriber_socket.setsockopt(zmq.SUBSCRIBE, b"gear")
@@ -288,66 +280,54 @@ def run_server():
                 publisher_socket.send_multipart([b"gear", to_network_order(wheelchair.get_actual_gear(), 'i')])
                 publisher_socket.send_multipart([b"lights", to_network_order(wheelchair.get_lights(), '?')])
                 publisher_socket.send_multipart([b"warn", to_network_order(wheelchair.get_warn(), '?')])
-                # Sende auch Kantelungs- und Höhenmodus-Status, falls Gamepad aktiv
                 publisher_socket.send_multipart([b"kantelung", to_network_order(wheelchair.get_kantelung(), '?')])
                 if gamepad_ctrl and hasattr(gamepad_ctrl, '_gp_height_active'):
                     publisher_socket.send_multipart(
                         [b"height_mode", to_network_order(gamepad_ctrl._gp_height_active, '?')])
-
                 ready_received = True
                 print(f"Subscriber (PC) verbunden mit ML2 an {magic_leap_ip}:{pc_port + 1}")
-                # Setze RCVTIMEO für die Hauptschleife auf einen kürzeren Wert
-                subscriber_socket.setsockopt(zmq.RCVTIMEO, 1000)  # z.B. 1 Sekunde
-
-        except zmq.error.Again:  # Timeout beim Empfangen von READY
+                subscriber_socket.setsockopt(zmq.RCVTIMEO, 1000)
+        except zmq.error.Again:
             print("Timeout beim Warten auf READY von ML2.")
         except zmq.ZMQError as e:
             print(f"Fehler beim Warten/Verbinden (ZMQ): {e}")
-        except Exception as e_ready:  # Fange andere Fehler im READY-Block ab
+        except Exception as e_ready:
             print(f"Unerwarteter Fehler im READY-Block: {e_ready}")
 
         if not ready_received:
             print("Setup der ML2-Verbindung nicht erfolgreich, starte ZMQ-Teil neu...")
             if subscriber_socket: subscriber_socket.close(linger=0); subscriber_socket = None
             if publisher_socket:  publisher_socket.close(linger=0);  publisher_socket = None
-            time.sleep(RECONNECT_INTERVAL)
+            time.sleep(RECONNECT_INTERVAL);
             continue
 
-        # --- Ende Socket-Setup ---
-
-        # --- Hauptkommunikationsschleife (nach Empfang von READY) ---
         print("Beginne mit der Hauptkommunikation...")
-        last_heartbeat = time.time()  # Zeit des letzten *empfangenen* Heartbeats von ML2
-        last_heartbeat_send_to_ml = 0  # Zeitpunkt des letzten Sendens eines Heartbeats AN ML2
+        last_heartbeat = time.time()
+        last_heartbeat_send_to_ml = 0
 
-        while True:  # Hauptkommunikationsschleife
+        while True:
             try:
                 current_time = time.time()
-                # --- Heartbeat AN ML2 senden ---
                 if publisher_socket and not publisher_socket.closed and \
-                        current_time - last_heartbeat_send_to_ml > HEARTBEAT_INTERVAL:  # Nutze dein HEARTBEAT_INTERVAL
+                        current_time - last_heartbeat_send_to_ml > HEARTBEAT_INTERVAL:
                     publisher_socket.send_multipart([b"heartbeat", b""])
                     last_heartbeat_send_to_ml = current_time
 
-                # --- Heartbeat ZUM Rollstuhl(RLink) ---
                 if wheelchair and (not gamepad_ctrl or gamepad_ctrl.quit_event.is_set()):
                     if hasattr(wheelchair, 'heartbeat'):
                         wheelchair.heartbeat()
                     elif hasattr(wheelchair, 'send_rlink_heartbeat'):
                         wheelchair.send_rlink_heartbeat()
 
-                # --- Trigger-Dateien prüfen ---
                 if publisher_socket and not publisher_socket.closed:
                     if os.path.exists(JOYSTICK_VISIBILITY_TRIGGER_FILE):
                         try:
                             print(f"Trigger-Datei '{JOYSTICK_VISIBILITY_TRIGGER_FILE}' gefunden.")
-                            publisher_socket.send_multipart(
-                                [b"joystick_toggle_visibility", b"toggle"])  # Payload "toggle"
+                            publisher_socket.send_multipart([b"joystick_toggle_visibility", b"toggle"])
                             print(f"-> '{JOYSTICK_VISIBILITY_TRIGGER_FILE}' an ML2 gesendet.")
                             os.remove(JOYSTICK_VISIBILITY_TRIGGER_FILE)
                         except Exception as e_trig_vis:
                             print(f"Fehler Trigger JoystickVis: {e_trig_vis}", file=sys.stderr)
-
                     if os.path.exists(CONFIG_TRIGGER_FILE):
                         try:
                             trigger_timestamp = os.path.getmtime(CONFIG_TRIGGER_FILE)
@@ -363,25 +343,28 @@ def run_server():
                         except Exception as e_cfg_trig:
                             print(f"Fehler Trigger Config: {e_cfg_trig}", file=sys.stderr)
 
-                # --- Daten an ML2 senden (z.B. Geschwindigkeit) ---
                 if publisher_socket and not publisher_socket.closed:
                     speed = wheelchair.get_wheelchair_speed()
                     float_value = to_network_order(speed, 'f')
                     publisher_socket.send_multipart([b"topic_float", float_value])
 
-                # --- Nachrichten von ML2 empfangen ---
                 try:
                     if subscriber_socket and not subscriber_socket.closed and \
-                            subscriber_socket.poll(timeout=100):  # Kurzer, nicht-blockierender Poll
+                            subscriber_socket.poll(timeout=100):
                         topic, message = subscriber_socket.recv_multipart()
-
                         if topic == b"heartbeat":
-                            last_heartbeat = time.time()  # Zeit des letzten EMPFANGENEN Heartbeats
+                            last_heartbeat = time.time()
                         elif topic == b"joystickPos":
-                            if not gamepad_ctrl or gamepad_ctrl.quit_event.is_set():
-                                x = from_network_order(message[0:4], 'f')
-                                y = from_network_order(message[4:8], 'f')
-                                wheelchair.set_direction((x, y))
+                            # --- KORREKTUR HIER: ML2 Joystick soll immer verarbeitet werden können,
+                            # GamepadController.set_direction wird durch Gamepad-Events getriggert.
+                            # Wenn beide gleichzeitig aktiv sind, "gewinnt" der letzte Befehl an wheelchair.
+                            # Die Logik in WheelchairControlReal.set_direction entscheidet dann,
+                            # ob Fahren oder ein Modus (Kantelung) aktiv ist.
+                            x = from_network_order(message[0:4], 'f')
+                            y = from_network_order(message[4:8], 'f')
+                            print(f"DEBUG: ML2 joystickPos empfangen: ({x}, {y})")  # Debug-Ausgabe
+                            wheelchair.set_direction((x, y))
+                            # --- ENDE KORREKTUR ---
                         elif topic == b"gear":
                             received_value = from_network_order(message, '?')
                             actual_gear = wheelchair.set_gear(received_value)
@@ -398,40 +381,31 @@ def run_server():
                         elif topic == b"horn":
                             wheelchair.on_horn(from_network_order(message, '?'))
                         elif topic == b"kantelung":
-                            if not gamepad_ctrl or gamepad_ctrl.quit_event.is_set():
-                                received_value = from_network_order(message, '?')
-                                wheelchair.on_kantelung(received_value)
-                                if publisher_socket: publisher_socket.send_multipart(
-                                    [b"kantelung", to_network_order(wheelchair.get_kantelung(), '?')])
+                            # ML2 kann Kantelungsmodus umschalten.
+                            # Gamepad wird dies in WheelchairControlReal ggf. überschreiben oder umgekehrt.
+                            received_value = from_network_order(message, '?')
+                            wheelchair.on_kantelung(received_value)
+                            if publisher_socket: publisher_socket.send_multipart(
+                                [b"kantelung", to_network_order(wheelchair.get_kantelung(), '?')])
                         else:
                             print(f"Unerwartetes Topic von ML2: {topic}")
                 except zmq.error.Again:
-                    pass  # Timeout beim Pollen ist normal, nichts zu tun
+                    pass
 
-                # --- Heartbeat-Timeout-Überprüfung (von ML2) ---
-                if time.time() - last_heartbeat > RECONNECT_INTERVAL:  # Dein RECONNECT_INTERVAL
+                if time.time() - last_heartbeat > RECONNECT_INTERVAL:
                     print("Heartbeat-Timeout von ML2!")
-                    break  # Beende die innere Kommunikationsschleife -> führt zu ZMQ-Neustart
-
-                # --- Prüfen, ob Gamepad-Controller beendet wurde ---
+                    break
                 if gamepad_ctrl and gamepad_ctrl.quit_event.is_set():
                     print("Gamepad-Controller hat Beenden signalisiert. Starte ZMQ-Teil neu.")
                     gamepad_ctrl.stop()
                     gamepad_ctrl = None
                     break
-
                 time.sleep(0.01)
-
             except zmq.ZMQError as e:
-                print(f"Fehler in der ZMQ-Kommunikation: {e}")
-                break
+                print(f"Fehler in der ZMQ-Kommunikation: {e}"); break
             except Exception as e:
-                print(f"Unerwarteter Fehler in der Hauptschleife: {e}")
-                import traceback;
-                traceback.print_exc()
-                break
+                print(f"Unerwarteter Fehler in der Hauptschleife: {e}"); import traceback; traceback.print_exc(); break
 
-        # --- Aufräumen vor ZMQ-Neustart ---
         print("ZMQ Kommunikationsschleife beendet. Starte ZMQ-Teil neu...")
         if subscriber_socket: subscriber_socket.close(linger=0); subscriber_socket = None
         if publisher_socket:  publisher_socket.close(linger=0);  publisher_socket = None
@@ -446,16 +420,11 @@ if __name__ == "__main__":
         print("\nCtrl+C erkannt. Beende Hauptserver...")
     finally:
         print("Beende alle Komponenten des Hauptservers...")
-        if gamepad_ctrl:  # gamepad_ctrl ist global
+        if gamepad_ctrl:
             gamepad_ctrl.stop()
-        # --- KORREKTUR HIER ---
-        if wheelchair:  # Prüfe die korrekte globale Variable 'wheelchair'
+        if wheelchair:
             wheelchair.shutdown()
-        # --- ENDE KORREKTUR ---
 
-        # Globale Sockets hier schließen, da sie in der Schleife neu zugewiesen werden
-        # und die alten Referenzen sonst offen bleiben könnten, wenn run_server()
-        # durch eine Exception im äußeren Teil abbricht.
         if publisher_socket and not publisher_socket.closed:
             print("Schließe globalen Publisher Socket...")
             publisher_socket.close(linger=0)
