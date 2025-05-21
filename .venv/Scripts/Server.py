@@ -464,4 +464,26 @@ def run_server():
 
 
 if __name__ == "__main__":
-    run_server()
+    try:
+        run_server()
+    except KeyboardInterrupt:
+        print("\nCtrl+C erkannt. Beende Hauptserver...")
+    finally:
+        print("Beende alle Komponenten des Hauptservers...")
+        if gamepad_ctrl:  # gamepad_ctrl ist global
+            gamepad_ctrl.stop()
+        if wheelchair:  # wheelchair ist global
+            wheelchair.shutdown()
+
+        # Globale Sockets hier schließen, da sie in der Schleife neu zugewiesen werden
+        if publisher_socket and not publisher_socket.closed:
+            print("Schließe globalen Publisher Socket...")
+            publisher_socket.close(linger=0)
+        if subscriber_socket and not subscriber_socket.closed:
+            print("Schließe globalen Subscriber Socket...")
+            subscriber_socket.close(linger=0)
+
+        if context and not context.closed:
+            print("Schließe globalen ZeroMQ-Kontext.")
+            context.term()
+        print("Hauptserver beendet.")
