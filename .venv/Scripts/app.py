@@ -9,6 +9,7 @@ import time
 
 # --- Konfiguration für Rollstuhl-Pi-Parameter ---
 CONFIG_FILE_PI = "wheelchair_config.json"  # Für Pi-seitige Rollstuhlparameter
+GAMEPAD_MODE_TRIGGER_FILE = "/tmp/gamepad_mode_trigger.txt"
 GIT_PULL_DIRECTORY = "/home/jendrik/projekte/JoystickCommunicator"
 PATH_TO_START_ZMQ_SCRIPT = "/home/jendrik/projekte/scripts/start_zmq.sh"
 PATH_TO_STOP_ZMQ_SCRIPT = "/home/jendrik/projekte/scripts/stop_zmq.sh"
@@ -513,6 +514,18 @@ def toggle_joystick_visibility_route():
         flash(message, category)
 
     return redirect(url_for('index'))  # Leite zurück zur Hauptseite
+
+@app.route('/toggle_gamepad_mode', methods=['POST'])
+def toggle_gamepad_mode_route():
+    global gamepad_web_switch_enabled # Dieser Schalter ist nur für die Anzeige im Webinterface
+    gamepad_web_switch_enabled = not gamepad_web_switch_enabled
+    command_to_write = "ENABLE_GAMEPAD" if gamepad_web_switch_enabled else "DISABLE_GAMEPAD"
+    message, category = f"Gamepad-Steuerung wird auf '{command_to_write}' gesetzt.", "info"
+    try:
+        with open(GAMEPAD_MODE_TRIGGER_FILE, "w") as f: f.write(f"{command_to_write}:{time.time()}")
+        message = f"Befehl '{command_to_write}' in Trigger-Datei geschrieben."; category = "success"
+    except Exception as e: message = f"Fehler Schreiben Gamepad-Trigger: {e}"; category = "error"
+    flash(message, category); return redirect(url_for('index'))
 
 # --- ENDE Routen ---
 

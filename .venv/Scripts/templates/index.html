@@ -1,165 +1,158 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Magic Leap 2 Dateneingabe</title>
+    <title>Magic Leap 2 & Rollstuhl Steuerung</title>
     <style>
-        body { font-family: sans-serif; }
-        label { display: block; margin-bottom: 5px; }
-        input[type="text"] { width: 100%; padding: 5px; margin-bottom: 10px; box-sizing: border-box; }
-        button { padding: 10px 20px; background-color: #4CAF50; color: white; border: none; cursor: pointer; }
-        #message { margin-top: 10px; font-weight: bold; }
-        .error {color: red;}
-        .success {color: green;}
-        .warning {color: orange;}
-
-        .config-button-link {
-            position: fixed; /* Positioniert relativ zum Browserfenster */
-            bottom: 20px;    /* Abstand vom unteren Rand */
-            right: 20px;     /* Abstand vom rechten Rand */
-            padding: 12px 18px;
-            background-color: #007bff; /* Blauer Button als Beispiel */
+        body { font-family: sans-serif; margin: 20px; background-color: #f0f2f5; }
+        .container { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h1, h2 { color: #333; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        label { display: block; margin-bottom: 5px; font-weight: 500; color: #555;}
+        input[type="text"], select { width: 100%; padding: 8px; margin-bottom: 12px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        button, .button-link {
+            padding: 10px 15px;
             color: white;
-            text-decoration: none; /* Entfernt Unterstreichung vom Link */
             border: none;
-            border-radius: 5px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2); /* Kleiner Schatten */
             cursor: pointer;
-            font-size: 0.9em;
-            z-index: 1000; /* Stellt sicher, dass er über anderem Inhalt liegt */
+            border-radius: 4px;
+            font-size: 0.95em;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+            margin-right: 5px;
+            margin-bottom: 5px;
         }
-        .config-button-link:hover {
-            background-color: #0056b3; /* Dunkleres Blau beim Hovern */
-        }
+        .button-save { background-color: #28a745; } /* Grün */
+        .button-save:hover { background-color: #218838; }
+        .button-action { background-color: #007bff; } /* Blau */
+        .button-action:hover { background-color: #0056b3; }
+        .button-danger { background-color: #dc3545; } /* Rot */
+        .button-danger:hover { background-color: #c82333; }
+        .button-warning { background-color: #ffc107; color: #212529;} /* Gelb */
+        .button-warning:hover { background-color: #e0a800; }
 
-        .server-controls {
+
+        #message { margin-top: 15px; font-weight: bold; padding: 10px; border-radius: 4px; }
+        .error {color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb;}
+        .success {color: #155724; background-color: #d4edda; border: 1px solid #c3e6cb;}
+        .info {color: #0c5460; background-color: #d1ecf1; border: 1px solid #bee5eb;}
+        .warning {color: #856404; background-color: #fff3cd; border: 1px solid #ffeeba;}
+
+        .controls-panel {
             position: fixed;
             top: 10px;
             right: 10px;
-            z-index: 1001; /* Über dem Konfig-Button */
-            background-color: rgba(240, 240, 240, 0.8); /* Leicht transparent */
-            padding: 8px;
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 10px;
             border-radius: 5px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            z-index: 1000;
         }
-        .server-controls form {
-            display: inline-block;
-            margin-left: 5px;
+        .controls-panel form, .controls-panel a {
+            display: block; /* Jeder Button/Link in neuer Zeile im Panel */
+            margin-bottom: 8px;
         }
-        .server-controls button {
-            padding: 6px 12px;
-            font-size: 0.85em;
+        .controls-panel button, .controls-panel a {
+            width: 100%; /* Buttons füllen Breite des Panels */
         }
-        .server-controls .start-button {
-            background-color: #28a745; /* Grün */
-        }
-        .server-controls .start-button:hover {
-            background-color: #218838;
-        }
-        .server-controls .stop-button {
-            background-color: #dc3545; /* Rot */
-        }
-        .server_controls .stop-button:hover {
-            background-color: #c82333;
-        }
-        .server-controls .joystick-toggle-button {
-            background-color: #ffc107; /* Gelb als Beispiel */
-            color: #212529;
-        }
-        .server-controls .joystick-toggle-button:hover {
-            background-color: #e0a800;
-        }
+        .status-text { font-size: 0.9em; color: #666; margin-top: 5px;}
     </style>
 </head>
 <body>
-    <div class="server-controls">
-        <form action="{{ url_for('git_pull_route') }}" method="POST" style="display: inline-block;">
-        <button type="submit" style="background-color: #17a2b8; color: white; padding: 6px 12px; font-size: 0.85em; border: none; border-radius: 4px; cursor: pointer;">Update App (git pull)</button>
-        </form>
+    <div class="controls-panel">
+        <h3>Server Steuerung</h3>
         <form action="{{ url_for('zmq_server_start') }}" method="POST">
-            <button type="submit" class="start-button">ZMQ Server START</button>
+            <button type="submit" class="button-action">ZMQ Server START</button>
         </form>
         <form action="{{ url_for('zmq_server_stop') }}" method="POST">
-            <button type="submit" class="stop-button">ZMQ Server STOP</button>
+            <button type="submit" class="button-danger">ZMQ Server STOP</button>
         </form>
-        <form action="{{ url_for('toggle_joystick_visibility_route') }}" method="POST" style="display: inline-block;">
-            <button type="submit" class="joystick-toggle-button">Joystick Sichtbarkeit Umschalten</button>
+        <form action="{{ url_for('git_pull_route') }}" method="POST">
+            <button type="submit" class="button-action">Update App (git pull)</button>
         </form>
+        <hr style="margin: 10px 0;">
+        <h3>Joystick/Gamepad</h3>
+        <form action="{{ url_for('toggle_joystick_visibility_route') }}" method="POST">
+            <button type="submit" class="button-warning">ML2 Joystick Sichtbarkeit Umschalten</button>
+        </form>
+        <form action="{{ url_for('toggle_gamepad_mode_route') }}" method="POST">
+            <button type="submit" class="button-action">
+                Gamepad Steuerung <span id="gamepadStatus">({{ 'AN' if gamepad_status else 'AUS' }})</span>
+            </button>
+        </form>
+         <p class="status-text">Rollstuhl-Parameter: <a href="{{ url_for('show_config') }}" style="color: #007bff;">Hier klicken</a></p>
     </div>
-    <h1>Magic Leap 2 Dateneingabe</h1>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        {% for category, message in messages %}
-          <div class="flash {{ category }}">{{ message }}</div>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
+    <div class="container">
+        <h1>Magic Leap 2 Sprachbefehle</h1>
+        <p class="status-text">Konfiguriere hier die Sprachbefehle, die von der Magic Leap 2 erkannt werden sollen.</p>
 
-    <form id="myForm">
-        <label for="language">Language:</label>
-        <select id="language" name="language">
-            <option value="English" {% if data.language == 'English' %}selected{% endif %}>English</option>
-            <option value="German" {% if data.language == 'German' %}selected{% endif %}>German</option>
-            <option value="French" {% if data.language == 'French' %}selected{% endif %}>French</option>
-            <option value="Russian" {% if data.language == 'Russian' %}selected{% endif %}>Russian</option>
-            <option value="Spanish" {% if data.language == 'Spanish' %}selected{% endif %}>Spanish</option>
-        </select><br>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="flash {{ category }}">{{ message | safe }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
 
-        <label for="joystick">Show/unshow Joystick:</label>
-        <input type="text" id="joystick" name="joystick" value="{{ data.joystick }}"><br>
+        <form id="myForm">
+            <label for="language">Sprache für Befehle:</label>
+            <select id="language" name="language">
+                <option value="English" {% if data.language == 'English' %}selected{% endif %}>English</option>
+                <option value="German" {% if data.language == 'German' %}selected{% endif %}>German</option>
+                <option value="French" {% if data.language == 'French' %}selected{% endif %}>French</option>
+                <option value="Russian" {% if data.language == 'Russian' %}selected{% endif %}>Russian</option>
+                <option value="Spanish" {% if data.language == 'Spanish' %}selected{% endif %}>Spanish</option>
+            </select><br>
 
-        <label for="lights">Toggle lights:</label>
-        <input type="text" id="lights" name="lights" value="{{ data.lights }}"><br>
+            <label for="joystick">Joystick Anzeigen/Ausblenden:</label>
+            <input type="text" id="joystick" name="joystick" value="{{ data.joystick }}"><br>
 
-        <label for="warn">Toggle warninglights:</label>
-        <input type="text" id="warn" name="warn" value="{{ data.warn }}"><br>
+            <label for="lights">Licht Umschalten:</label>
+            <input type="text" id="lights" name="lights" value="{{ data.lights }}"><br>
 
-        <label for="hornOn">Horn on:</label>
-        <input type="text" id="hornOn" name="hornOn" value="{{ data.hornOn }}"><br>
+            <label for="warn">Warnblinker Umschalten:</label>
+            <input type="text" id="warn" name="warn" value="{{ data.warn }}"><br>
 
-        <label for="hornOff">Horn off:</label>
-        <input type="text" id="hornOff" name="hornOff" value="{{ data.hornOff }}"><br>
+            <label for="hornOn">Hupe AN:</label>
+            <input type="text" id="hornOn" name="hornOn" value="{{ data.hornOn }}"><br>
 
-        <label for="kantelungOn">Kantelung on:</label>
-        <input type="text" id="kantelungOn" name="kantelungOn" value="{{ data.kantelungOn }}"><br>
+            <label for="hornOff">Hupe AUS:</label>
+            <input type="text" id="hornOff" name="hornOff" value="{{ data.hornOff }}"><br>
 
-        <label for="kantelungOff">Kantelung off:</label>
-        <input type="text" id="kantelungOff" name="kantelungOff" value="{{ data.kantelungOff }}"><br>
+            <label for="kantelungOn">Kantelung AN:</label>
+            <input type="text" id="kantelungOn" name="kantelungOn" value="{{ data.kantelungOn }}"><br>
 
-        <label for="gearUp">Gear up:</label>
-        <input type="text" id="gearUp" name="gearUp" value="{{ data.gearUp }}"><br>
+            <label for="kantelungOff">Kantelung AUS:</label>
+            <input type="text" id="kantelungOff" name="kantelungOff" value="{{ data.kantelungOff }}"><br>
 
-        <label for="gearDown">Gear down:</label>
-        <input type="text" id="gearDown" name="gearDown" value="{{ data.gearDown }}"><br>
+            <label for="gearUp">Schneller (Gang hoch):</label>
+            <input type="text" id="gearUp" name="gearUp" value="{{ data.gearUp }}"><br>
 
-        <button type="button" onclick="saveData()">Speichern</button>
-    </form>
+            <label for="gearDown">Langsamer (Gang runter):</label>
+            <input type="text" id="gearDown" name="gearDown" value="{{ data.gearDown }}"><br>
 
-    <div id="message"></div>
+            <button type="button" class="button-save" onclick="saveData()">ML2 Befehle Speichern</button>
+        </form>
+        <div id="message"></div>
+    </div>
 
-    <a href="{{ url_for('show_config') }}" class="config-button-link">Rollstuhl-Parameter</a>
     <script>
         function saveData() {
             const form = document.getElementById('myForm');
             const formData = new FormData(form);
             const messageDiv = document.getElementById('message');
+            messageDiv.textContent = 'Speichere...';
+            messageDiv.className = 'info';
 
-            fetch('/save', { // Dieser Endpunkt bleibt für die ML2 Daten
+            fetch("{{ url_for('save_data') }}", { // Korrekter Name der Route für ML2 Daten
                 method: 'POST',
                 body: formData
             })
             .then(response => response.json())
             .then(data => {
                 console.log(data);
-                if(data.success){
-                  messageDiv.textContent = data.message + (data.output ? "\nOutput:\n" + data.output: "");
-                  messageDiv.className = "success";
-                }
-                else{
-                  messageDiv.textContent = data.message + (data.output ? "\nOutput:\n" + data.output: "");
-                  messageDiv.className = "error";
-                }
-
+                messageDiv.textContent = data.message + (data.output ? "\nOutput:\n" + data.output.replace(/\n/g, "<br>") : "");
+                messageDiv.className = data.success ? "success" : "error";
             })
             .catch(error => {
                 console.error('Error:', error);
@@ -167,6 +160,23 @@
                 messageDiv.className = "error";
             });
         }
+
+        // Optional: JavaScript zum Aktualisieren des Gamepad-Status-Buttons
+        // Diese Funktion könnte periodisch oder nach dem Klick aufgerufen werden.
+        function updateGamepadStatusDisplay() {
+            fetch("{{ url_for('get_gamepad_status_route') }}")
+                .then(response => response.json())
+                .then(data => {
+                    const statusSpan = document.getElementById('gamepadStatus');
+                    if (statusSpan) {
+                        statusSpan.textContent = data.gamepad_enabled_by_web ? '(AN)' : '(AUS)';
+                    }
+                })
+                .catch(error => console.error('Fehler beim Abrufen des Gamepad-Status:', error));
+        }
+        // Rufe es einmal beim Laden auf, um den initialen Status zu setzen
+        // document.addEventListener('DOMContentLoaded', updateGamepadStatusDisplay);
+        // Besser: Der Status wird serverseitig im Template gerendert (wie jetzt implementiert)
     </script>
 </body>
 </html>
