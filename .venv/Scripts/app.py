@@ -527,6 +527,16 @@ def toggle_gamepad_mode_route():
     except Exception as e: message = f"Fehler Schreiben Gamepad-Trigger: {e}"; category = "error"
     flash(message, category); return redirect(url_for('index'))
 
+@app.route('/get_gamepad_status', methods=['GET'])
+def get_gamepad_status_route():
+    # Lese den *tatsächlichen* Status aus der Trigger-Datei oder einem globalen Flag,
+    # das vom ZMQ-Server gesetzt wird (komplexer). Einfacher: Der Webserver merkt sich nur den
+    # *gewünschten* Zustand, den er per Trigger gesetzt hat.
+    # Für dieses Beispiel nehmen wir den Zustand des Web-Schalters.
+    global gamepad_web_switch_enabled
+    return jsonify({"gamepad_enabled_by_web": gamepad_web_switch_enabled})
+
+
 # --- ENDE Routen ---
 
 
