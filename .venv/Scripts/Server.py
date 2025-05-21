@@ -377,7 +377,7 @@ def run_server():
                         wheelchair.on_kantelung(received_value)
                         publisher_socket.send_multipart([b"kantelung", to_network_order(wheelchair.get_kantelung(), '?')])
                     else:
-                        print(f"Unerwartetes Topic: {topic}")  # Sollte nicht passieren
+                        print(f"Unerwartetes Topic: {topic}")
 
                 # Heartbeat-Timeout-Überprüfung
                 if time.time() - last_heartbeat > RECONNECT_INTERVAL:
