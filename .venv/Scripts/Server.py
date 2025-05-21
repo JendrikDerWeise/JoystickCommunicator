@@ -413,7 +413,8 @@ def run_server():
                         y = from_network_order(message[4:8], 'f')
 
                         direction = (x, y)
-                        wheelchair.set_direction(direction)
+                        if not gamepad_control_is_active_by_trigger:
+                            wheelchair.set_direction(direction)
                     elif topic == b"gear":
                         received_value = from_network_order(message, '?')
                         actual_gear = wheelchair.set_gear(received_value)
