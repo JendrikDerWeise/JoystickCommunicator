@@ -375,7 +375,7 @@ def run_server():
                 #if wheelchair and hasattr(wheelchair, 'heartbeat'):
                     #if not gamepad_is_currently_active or not gamepad_control_is_active_by_trigger:
                         #print("DEBUG: Server.py sendet RLink Heartbeat") # Für Debugging
-                wheelchair.heartbeat()
+                wheelchair.send_rlink_heartbeat()
 
                 # --- Trigger-Dateien für andere Befehle prüfen (dein Originalcode) ---
                 if os.path.exists(JOYSTICK_VISIBILITY_TRIGGER_FILE):
