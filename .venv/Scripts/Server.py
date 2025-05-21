@@ -275,8 +275,8 @@ def run_server():
         print("Beginne Hauptkommunikation mit ML2...")
         last_heartbeat_from_ml = time.time()
         last_heartbeat_send_to_ml = 0
-        current_ml_x = 0.0
-        current_ml_y = 0.0
+        current_ml_x = 0.0  # Letzte bekannte X-Position von ML2
+        current_ml_y = 0.0  # Letzte bekannte Y-Position von ML2
 
         while True:  # Innere ZMQ-Kommunikationsschleife
             try:
@@ -326,7 +326,7 @@ def run_server():
                         publisher_socket_to_ml.send_multipart([b"topic_float", float_value])
 
                 # --- Nachrichten von ML2 empfangen ---
-                ml_joystick_command_received = False
+                # ml_joystick_command_received = False # Nicht mehr benötigt
                 try:
                     if subscriber_socket_from_ml and not subscriber_socket_from_ml.closed and \
                             subscriber_socket_from_ml.poll(timeout=10):
@@ -337,12 +337,12 @@ def run_server():
                         elif topic == b"joystickPos":
                             x = from_network_order(message[0:4], 'f')
                             y = from_network_order(message[4:8], 'f')
-                            current_ml_x = x  # Speichere immer die neuesten Werte von ML2
+                            current_ml_x = x  # Aktualisiere immer die zuletzt bekannten ML2-Werte
                             current_ml_y = y
-                            ml_joystick_command_received = True  # Flag, dass ML2 gesendet hat
-                            if wheelchair:
-                                # print(f"DEBUG: ML2 sendet ({x},{y}) an set_direction") # DEBUG
-                                wheelchair.set_direction((x, y))
+                            # Der Befehl wird unten gesendet, wenn kein Gamepad aktiv ist,
+                            # oder wenn Gamepad aktiv ist, wird der Gamepad-Wert gesendet.
+                            # Die direkte Weiterleitung hier entfällt, um Konflikte zu vermeiden
+                            # und die "letzter gewinnt"-Logik durch die kontinuierliche Sendung unten zu steuern.
                         elif topic == b"gear":
                             if wheelchair:
                                 received_value = from_network_order(message, '?')
@@ -372,17 +372,16 @@ def run_server():
                 except zmq.error.Again:
                     pass
 
-                # --- KONTINUIERLICHE STEUERUNG, WENN KEIN GAMEPAD AKTIV ---
-                # Wenn kein Gamepad aktiv ist, UND die ML2 in DIESEM Zyklus KEINE neuen Joystick-Daten gesendet hat,
-                # sende die ZULETZT BEKANNTEN ML2-Joystick-Werte (oder 0,0 initial), um die Bewegung
-                # aufrechtzuerhalten oder den Stuhl explizit bei (0,0) zu halten.
-                # Der GamepadController hat seine eigene Loop, die das für Gamepad-Input macht.
-                gamepad_is_controlling = gamepad_ctrl and not gamepad_ctrl.quit_event.is_set()
+                # --- KONTINUIERLICHE STEUERUNG DURCH ML2, WENN KEIN GAMEPAD AKTIV ---
+                # Wenn kein Gamepad-Controller aktiv ist (oder beendet wurde),
+                # sende die zuletzt bekannten ML2-Joystick-Werte (oder 0,0 initial)
+                # in *jedem* Durchlauf dieser Schleife.
+                gamepad_is_active_and_controlling = gamepad_ctrl and not gamepad_ctrl.quit_event.is_set()
 
-                if wheelchair and not gamepad_is_controlling:
-                    if not ml_joystick_command_received:  # Nur wenn ML2 *nicht* gerade gesendet hat
-                        # print(f"DEBUG: ML2-Only - Halte ({current_ml_x}, {current_ml_y})") # DEBUG
-                        wheelchair.set_direction((current_ml_x, current_ml_y))
+                if wheelchair and not gamepad_is_active_and_controlling:
+                    # print(f"DEBUG: ML2-Only - Sende ({current_ml_x}, {current_ml_y})") # DEBUG
+                    wheelchair.set_direction((current_ml_x, current_ml_y))
+                # Wenn Gamepad aktiv ist, sendet der GamepadController.set_direction() in seinem eigenen Thread.
                 # --- ENDE KONTINUIERLICHE STEUERUNG ---
 
                 if time.time() - last_heartbeat_from_ml > RECONNECT_INTERVAL_ZMQ:
