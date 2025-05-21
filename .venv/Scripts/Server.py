@@ -52,7 +52,7 @@ last_config_send_time = 0
 JOYSTICK_VISIBILITY_TRIGGER_FILE = "/tmp/joystick_visibility_trigger.txt"
 # NEU: Trigger-Datei für Gamepad-Modus (falls du es später vom Webinterface steuern willst)
 GAMEPAD_MODE_TRIGGER_FILE = "/tmp/gamepad_mode_trigger.txt"
-gamepad_control_active_by_trigger = False  # Gesteuert durch Webinterface-Trigger (optional)
+gamepad_control_is_active_by_trigger = False  # Gesteuert durch Webinterface-Trigger (optional)
 
 
 # --- Deine bestehenden Funktionen (is_little_endian, etc.) ---
@@ -320,7 +320,7 @@ def run_server():
                 subscriber_socket.setsockopt(zmq.SUBSCRIBE, b"kantelung")
 
                 # Sende initiale Zustände an ML2
-                #publisher_socket.send_multipart([b"gear", to_network_order(wheelchair.get_actual_gear(), 'i')])
+                publisher_socket.send_multipart([b"gear", to_network_order(wheelchair.get_actual_gear(), 'i')])
                 publisher_socket.send_multipart([b"lights", to_network_order(wheelchair.get_lights(), '?')])
                 publisher_socket.send_multipart([b"warn", to_network_order(wheelchair.get_warn(), '?')])
                 publisher_socket.send_multipart([b"kantelung", to_network_order(wheelchair.get_kantelung(), '?')])
