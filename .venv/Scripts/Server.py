@@ -15,7 +15,7 @@ import json  # Wird von WheelchairControlReal intern für Config genutzt
 
 # Importiere deine Module
 try:
-    from wheelchair_control_module import WheelchairControlReal, RLinkError
+    from WheelchairControlReal import WheelchairControlReal, RLinkError
 except ImportError as e:
     print(f"[ZMQ-Server] Fehler: wheelchair_control_module.py nicht gefunden: {e}", file=sys.stderr)
     sys.exit(1)
