@@ -450,8 +450,8 @@ def run_server():
                         if frame:
                             publisher_socket.send_multipart([b"rear_video_stream", frame])
                             last_frame_send_time = time.time()  # Aktualisiere den Zeitpunkt des letzten Sendens
-                        # else:
-                        # print("Failed to get frame from rear camera")
+                        else:
+                            print("Failed to get frame from rear camera")
 
                 # Empfange Nachrichten (mit Timeout)
                 if subscriber_socket.poll(10):  # 1 Sekunde Timeout
