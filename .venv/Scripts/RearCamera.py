@@ -5,7 +5,7 @@ from libcamera import controls # For autofocus modes
 import cv2 # Import OpenCV
 
 class RearCamera:
-    def __init__(self, resolution=(320, 240), framerate=30):
+    def __init__(self, resolution=(640, 480), framerate=30):
         self.picam2 = None
         self.resolution = resolution
         self.framerate = framerate
