@@ -233,6 +233,7 @@ def process_gamepad_mode_trigger():
 def run_server():
     """Hauptfunktion des Servers."""
     global magic_leap_ip, last_heartbeat, publisher_socket, subscriber_socket
+    global rear_camera, camera_stream_active
 
     while True:  # Äußere Schleife für Server-Neustart
         print("Server wird (neu)gestartet...")
@@ -357,7 +358,6 @@ def run_server():
 
         while True:  # Hauptkommunikationsschleife
             try:
-                global rear_camera, camera_stream_active
                 process_gamepad_mode_trigger()
                 # --- Sende Heartbeat (alle 2 Sekunden) ---
                 if time.time() - last_heartbeat_send > HEARTBEAT_INTERVAL:
