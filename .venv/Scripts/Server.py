@@ -447,7 +447,8 @@ def run_server():
                     if camera_stream_active:
                         frame = rear_camera.get_frame()
                         if frame:
-                            publisher_socket.send_multipart([b"rear_video_stream", frame])
+                            print("Sende NICHT")
+                            #publisher_socket.send_multipart([b"rear_video_stream", frame])
                         # else:
                         # print("Failed to get frame from rear camera") # Can be noisy
 
