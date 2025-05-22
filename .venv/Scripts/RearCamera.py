@@ -75,7 +75,7 @@ class RearCamera:
             if frame_array is not None:
                 # Konvertiere das Numpy-Array in ein JPEG-Bild mit OpenCV
                 # cv2.imencode gibt ein Tupel zurück: (Erfolgsflag, Numpy-Array des kodierten Bildes)
-                is_success, jpeg_bytes_ndarray = cv2.imencode(".jpg", frame_array, [cv2.IMWRITE_JPEG_QUALITY, 60])
+                is_success, jpeg_bytes_ndarray = cv2.imencode(".jpg", frame_array, [cv2.IMWRITE_JPEG_QUALITY, 85])
 
                 if is_success:
                     return jpeg_bytes_ndarray.tobytes()  # Konvertiere das Numpy-Array in Bytes
