@@ -1,8 +1,8 @@
 import time
 import io
 from picamera2 import Picamera2, Preview
-from libcamera import controls  # For autofocus modes
-
+from libcamera import controls # For autofocus modes
+import cv2 # Import OpenCV
 
 class RearCamera:
     def __init__(self, resolution=(640, 480), framerate=20):
@@ -69,33 +69,19 @@ class RearCamera:
         if not self.picam2 or not self.is_streaming:
             return None
         try:
-            # Capture to a buffer in memory as JPEG
-            # For RGB888 configured stream, you'd capture raw and then encode.
-            # If configured for MJPEG, you could capture directly.
-            # Let's assume RGB888 and encode manually for more control / if other formats needed.
+            # Erfasse das Bild als Numpy-Array aus dem Hauptstream (z.B. RGB888)
+            frame_array = self.picam2.capture_array("main")
 
-            # For higher performance, picamera2 can encode to MJPEG directly if configured.
-            # However, capturing RGB888 and then encoding to JPEG gives flexibility.
-            # For simplicity and to avoid reconfiguring the stream dynamically if not needed:
+            if frame_array is not None:
+                # Konvertiere das Numpy-Array in ein JPEG-Bild mit OpenCV
+                # cv2.imencode gibt ein Tupel zurück: (Erfolgsflag, Numpy-Array des kodierten Bildes)
+                is_success, jpeg_bytes_ndarray = cv2.imencode(".jpg", frame_array, [cv2.IMWRITE_JPEG_QUALITY, 85])
 
-            # Simplest way to get a JPEG from an RGB stream:
-            buffer = io.BytesIO()
-            self.picam2.capture_file(buffer, format="jpeg", quality=85)  # Capture as JPEG
-            buffer.seek(0)
-            return buffer.read()
-
-            # Alternative if you need the raw array first (e.g. for OpenCV processing)
-            # frame_array = self.picam2.capture_array("main") # Captures the main stream array (e.g. RGB888)
-            # if frame_array is not None:
-            #     # If you have OpenCV and want to encode with it:
-            #     import cv2
-            #     is_success, jpeg_bytes = cv2.imencode(".jpg", frame_array, [cv2.IMWRITE_JPEG_QUALITY, 85])
-            #     if is_success:
-            #         return jpeg_bytes.tobytes()
-            # return None
-
+                if is_success:
+                    return jpeg_bytes_ndarray.tobytes()  # Konvertiere das Numpy-Array in Bytes
+            return None  # Falls capture_array oder imencode fehlschlägt
         except Exception as e:
-            print(f"RearCamera: Error capturing frame: {e}")
+            print(f"RearCamera: Error capturing or encoding frame: {e}")  # Angepasste Fehlermeldung
             return None
 
     def __del__(self):
