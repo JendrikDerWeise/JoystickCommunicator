@@ -5,7 +5,7 @@ from libcamera import controls # For autofocus modes
 import cv2 # Import OpenCV
 
 class RearCamera:
-    def __init__(self, resolution=(320, 240), framerate=20):
+    def __init__(self, resolution=(320, 240), framerate=10):
         self.picam2 = None
         self.resolution = resolution
         self.framerate = framerate
@@ -75,7 +75,7 @@ class RearCamera:
             if frame_array is not None:
                 # Konvertiere das Numpy-Array in ein JPEG-Bild mit OpenCV
                 # cv2.imencode gibt ein Tupel zurück: (Erfolgsflag, Numpy-Array des kodierten Bildes)
-                is_success, jpeg_bytes_ndarray = cv2.imencode(".jpg", frame_array, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                is_success, jpeg_bytes_ndarray = cv2.imencode(".jpg", frame_array, [cv2.IMWRITE_JPEG_QUALITY, 60])
 
                 if is_success:
                     return jpeg_bytes_ndarray.tobytes()  # Konvertiere das Numpy-Array in Bytes

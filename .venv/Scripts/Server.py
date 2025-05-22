@@ -31,6 +31,8 @@ wheelchair = WheelchairControlReal()
 rear_camera = None # Initialize rear_camera
 camera_stream_active = False # Track camera state
 MIN_REVERSE_SPEED_THRESHOLD = -0.1
+last_frame_send_time = 0
+VIDEO_FRAME_INTERVAL = 1.0 / 15
 
 # --- Globale Variablen für ML2 Konfig-Senden ---
 CONFIG_TRIGGER_FILE = "send_ml2_config_trigger.flag" # Wie in app.py definiert
@@ -430,30 +432,29 @@ def run_server():
 
                 # --- Cam activation ---
 
-                if rear_camera and rear_camera.picam2:  # Check if camera is usable
+                if rear_camera and rear_camera.picam2:
                     if current_y_command < MIN_REVERSE_SPEED_THRESHOLD and not camera_stream_active:
                         if rear_camera.start_stream():
                             camera_stream_active = True
                             print("Rear camera stream started due to reverse movement.")
-                            # Optionally send a message to ML2 that stream is starting
                             publisher_socket.send_multipart([b"rear_camera_status", b"STARTING"])
                     elif current_y_command >= MIN_REVERSE_SPEED_THRESHOLD and camera_stream_active:
                         rear_camera.stop_stream()
                         camera_stream_active = False
                         print("Rear camera stream stopped.")
-                        # Optionally send a message to ML2 that stream is stopping
                         publisher_socket.send_multipart([b"rear_camera_status", b"STOPPED"])
 
-                    if camera_stream_active:
+                    # Rate-limit video frame sending
+                    if camera_stream_active and (time.time() - last_frame_send_time > VIDEO_FRAME_INTERVAL):
                         frame = rear_camera.get_frame()
                         if frame:
-                            print("Sende NICHT")
-                            #publisher_socket.send_multipart([b"rear_video_stream", frame])
+                            publisher_socket.send_multipart([b"rear_video_stream", frame])
+                            last_frame_send_time = time.time()  # Aktualisiere den Zeitpunkt des letzten Sendens
                         # else:
-                        # print("Failed to get frame from rear camera") # Can be noisy
+                        # print("Failed to get frame from rear camera")
 
                 # Empfange Nachrichten (mit Timeout)
-                if subscriber_socket.poll(1000):  # 1 Sekunde Timeout
+                if subscriber_socket.poll(10):  # 1 Sekunde Timeout
                     topic, message = subscriber_socket.recv_multipart()
 
                     if topic == b"heartbeat":
