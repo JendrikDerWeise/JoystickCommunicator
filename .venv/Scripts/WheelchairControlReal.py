@@ -205,6 +205,10 @@ class WheelchairControlReal:
         return False
 
     # --- Restliche Methoden (Funktionalität wie zuvor, Heartbeat, Shutdown etc.) ---
+    def get_current_sent_y(self) -> float:
+        """Gibt den aktuell an RLink gesendeten Y-Wert (nach Rampe) zurück."""
+        return self._current_sent_y
+
     def _heartbeat_thread_func(self):
         print("Heartbeat thread started.")
         while not self._quit_heartbeat.wait(timeout=HEARTBEAT_INTERVAL):

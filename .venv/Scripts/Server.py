@@ -19,12 +19,17 @@ BROADCAST_PORT = 50000     # Port für UDP-Broadcast (optional)
 # --- ZeroMQ-Kontext erstellen ---
 context = zmq.Context()
 
-# --- Globale Variablen (mit Bedacht verwenden!) ---
+# --- Globale Variablen ---
 magic_leap_ip = None  # IP-Adresse der Magic Leap 2
 last_heartbeat = 0    # Zeitpunkt des letzten empfangenen Heartbeats
 publisher_socket = None # Publisher Socket (zum Senden von Daten)
 subscriber_socket = None # Subscriber Socket (zum Empfangen von Heartbeats und READY)
 wheelchair = WheelchairControlReal()
+
+# --- Camera ---
+rear_camera = None # Initialize rear_camera
+camera_stream_active = False # Track camera state
+MIN_REVERSE_SPEED_THRESHOLD = -0.1
 
 # --- Globale Variablen für ML2 Konfig-Senden ---
 CONFIG_TRIGGER_FILE = "send_ml2_config_trigger.flag" # Wie in app.py definiert
@@ -320,6 +325,26 @@ def run_server():
 
         # --- Ende Socket-Setup ---
 
+        # --- Konfiguration RearCam ---
+        global rear_camera  # Ensure we're using the global instance
+        try:
+            print("Attempting to initialize RearCamera...")
+            rear_camera = RearCamera()  # Use default resolution/framerate or specify
+            # Test if camera can start (optional, but good for early feedback)
+            if rear_camera.picam2 is None:  # Check if Picamera2 object itself failed to init
+                print("WARNUNG: RearCamera Picamera2 object ist None. Kamerastreaming nicht verfügbar.")
+                rear_camera = None  # Explicitly set to None if unusable
+            elif not rear_camera.start_stream():
+                print("WARNUNG: RearCamera konnte den Stream nicht initial starten. Kamerastreaming nicht verfügbar.")
+                rear_camera.stop_stream()  # Ensure it's stopped if start failed
+                # rear_camera = None # Decide if you want to disable it completely or allow retries
+            else:
+                print("RearCamera initial gestartet und gestoppt für Test. Bereit.")
+                rear_camera.stop_stream()  # Stop it, will be activated by reverse movement
+        except Exception as e_cam_init:
+            print(f"WARNUNG: Kritischer Fehler bei Initialisierung der RearCamera: {e_cam_init}")
+            rear_camera = None  # Disable camera functionality
+        # --- Ende CamConfig ---
 
         # --- Hauptkommunikationsschleife (nach Empfang von READY) ---
         print("Beginne mit der Hauptkommunikation...")
@@ -332,6 +357,7 @@ def run_server():
 
         while True:  # Hauptkommunikationsschleife
             try:
+                global rear_camera, camera_stream_active
                 process_gamepad_mode_trigger()
                 # --- Sende Heartbeat (alle 2 Sekunden) ---
                 if time.time() - last_heartbeat_send > HEARTBEAT_INTERVAL:
@@ -395,11 +421,34 @@ def run_server():
                     except Exception as e_config:
                         print(f"Fehler beim Lesen/Senden der ML2 Joystick Konfiguration: {e_config}")
 
-                # Sende Testnachrichten (Beispiele)
                 speed = wheelchair.get_wheelchair_speed()
                 float_value = to_network_order(speed, 'f')
                 publisher_socket.send_multipart([b"topic_float", float_value])
+                current_y_command = wheelchair._current_sent_y
                 #publisher_socket.send_multipart([b"topic_string", string_value.encode()])
+
+                # --- Cam activation ---
+
+                if rear_camera and rear_camera.picam2:  # Check if camera is usable
+                    if current_y_command < MIN_REVERSE_SPEED_THRESHOLD and not camera_stream_active:
+                        if rear_camera.start_stream():
+                            camera_stream_active = True
+                            print("Rear camera stream started due to reverse movement.")
+                            # Optionally send a message to ML2 that stream is starting
+                            publisher_socket.send_multipart([b"rear_camera_status", b"STARTING"])
+                    elif current_y_command >= MIN_REVERSE_SPEED_THRESHOLD and camera_stream_active:
+                        rear_camera.stop_stream()
+                        camera_stream_active = False
+                        print("Rear camera stream stopped.")
+                        # Optionally send a message to ML2 that stream is stopping
+                        publisher_socket.send_multipart([b"rear_camera_status", b"STOPPED"])
+
+                    if camera_stream_active:
+                        frame = rear_camera.get_frame()
+                        if frame:
+                            publisher_socket.send_multipart([b"rear_video_stream", frame])
+                        # else:
+                        # print("Failed to get frame from rear camera") # Can be noisy
 
                 # Empfange Nachrichten (mit Timeout)
                 if subscriber_socket.poll(1000):  # 1 Sekunde Timeout
@@ -474,6 +523,8 @@ if __name__ == "__main__":
             gamepad_ctrl.stop()
         if wheelchair:  # wheelchair ist global
             wheelchair.shutdown()
+        if rear_camera:  # Ensure camera is stopped if server loop breaks
+            rear_camera.stop_stream()
 
         # Globale Sockets hier schließen, da sie in der Schleife neu zugewiesen werden
         if publisher_socket and not publisher_socket.closed:
