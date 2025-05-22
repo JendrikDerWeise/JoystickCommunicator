@@ -8,6 +8,7 @@ import socket  # Für UDP-Broadcast
 import random
 import struct
 from WheelchairControlReal import WheelchairControlReal
+from RearCamera import RearCamera
 import os
 
 # --- Konstanten ---
