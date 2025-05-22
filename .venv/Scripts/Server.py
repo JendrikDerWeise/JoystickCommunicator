@@ -236,7 +236,7 @@ def process_gamepad_mode_trigger():
 def run_server():
     """Hauptfunktion des Servers."""
     global magic_leap_ip, last_heartbeat, publisher_socket, subscriber_socket
-    global rear_camera, camera_stream_active
+    global rear_camera, camera_stream_active, last_frame_send_time
 
     while True:  # Äußere Schleife für Server-Neustart
         print("Server wird (neu)gestartet...")
