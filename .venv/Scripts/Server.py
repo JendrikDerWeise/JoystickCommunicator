@@ -240,6 +240,7 @@ def run_server():
 
     while True:  # Äußere Schleife für Server-Neustart
         print("Server wird (neu)gestartet...")
+        process_gamepad_mode_trigger()
         subscriber_socket = None
         publisher_socket = None
         pc_port = None
@@ -285,6 +286,7 @@ def run_server():
 
         while not ready_received: #and time.time() - start_time < INITIAL_CONNECTION_TIMEOUT:
             try:
+                process_gamepad_mode_trigger()
                 subscriber_socket.connect(f"tcp://{magic_leap_ip}:{pc_port + 1}")
                 subscriber_socket.setsockopt(zmq.SUBSCRIBE, b"READY")
                 topic, message = subscriber_socket.recv_multipart()  # 1 Sekunde Timeout
