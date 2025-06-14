@@ -1,0 +1,101 @@
+Participant_ID;Condition;Exercise_ID;Task_Name;Task_Completion_Time_s;Task_Success;Unintended_Stops_Starts;Path_Deviations_Collisions;Stopping_Accuracy_cm;Turn_Accuracy_deg;Qual_Turn_Fluidity_1to5;Qual_Axis_Utility_1to5;SUS_Score;NASA_TLX_Mental;NASA_TLX_Physical;NASA_TLX_Temporal;NASA_TLX_Performance;NASA_TLX_Effort;NASA_TLX_Frustration;Observer_Notes;Participant_Comments
+P01;VR;1;Activation_1;4;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;Initial activation took some time;
+P01;VR;1;Forward_Drive;37;1;6;6;20;N/A;N/A;4;;;;;;;;;Feels stable going straight
+P01;VR;1;Deactivation_1;1.5;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P01;VR;1;Reactivation_2;1.5;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P01;VR;1;Turn_180;23;1;6;N/A;N/A;10;2;N/A;;;;;;;;Turn was a bit jerky at the start;Stopping the turn precisely is hard
+P01;VR;1;Backward_Drive;5;1;1;0;10;N/A;N/A;1;;;;;;;;;
+P01;VR;2;U-Shape_Parcours;65;1;12;2;N/A;N/A;2;4;;;;;;;;y-axix very fluently, problems with fluent turns;The smooth turn is difficult
+P01;VR;3;Precision_Drive;N/A;1;0;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P01;VR;3;Axial_Fixation_Straight;5;1;0;0;20;N/A;N/A;5;;;;;;;;Very straight driving;
+P01;VR;3;Axial_Fixation_Turn;10;1;2;N/A;N/A;0;2;N/A;50;14;12;4;7;6;13;;
+P01;AR;1;Activation_1;1.5;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;Initial activation was quick;
+P01;AR;1;Forward_Drive;45;1;3;0;10;N/A;N/A;3;;;;;;;;;Feels stable going straight
+P01;AR;1;Deactivation_1;1.5;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P01;AR;1;Reactivation_2;1.5;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P01;AR;1;Turn_180;15;1;2;N/A;N/A;0;2;N/A;;;;;;;;very high concentrated;Stopping the turn precisely is hard
+P01;AR;1;Backward_Drive;5;1;0;0;0;N/A;N/A;5;;;;;;;;;
+P01;AR;2;U-Shape_Parcours;50;1;0;0;N/A;N/A;1;5;;;;;;;;needed stop to turn, straight was very fluent;The smooth turn is difficult
+P01;AR;3;Precision_Drive;N/A;1;0;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P01;AR;3;Axial_Fixation_Straight;3;1;0;0;8;N/A;N/A;5;;;;;;;;Very straight driving;
+P01;AR;3;Axial_Fixation_Turn;6;1;1;N/A;N/A;0;2;N/A;57,5;14;12;4;7;6;13;;
+P02;VR;1;Activation_1;3;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P02;VR;1;Forward_Drive;22;1;4;0;20;N/A;N/A;4;;;;;;;;fast learner;
+P02;VR;1;Deactivation_1;1.5;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P02;VR;1;Reactivation_2;1.5;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P02;VR;1;Turn_180;18;1;4;N/A;N/A;15;2;N/A;;;;;;;;problems with stable turn;
+P02;VR;1;Backward_Drive;4;1;0;0;10;N/A;N/A;4;;;;;;;;;
+P02;VR;2;U-Shape_Parcours;62;1;8;0;N/A;N/A;2;4;;;;;;;;;
+P02;VR;3;Precision_Drive;N/A;1;0;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P02;VR;3;Axial_Fixation_Straight;4;1;0;0;15;N/A;N/A;5;;;;;;;;;
+P02;VR;3;Axial_Fixation_Turn;8;1;1;N/A;N/A;5;4;N/A;90;1;1;1;2;3;1;;
+P02;AR;1;Activation_1;1.5;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P02;AR;1;Forward_Drive;42;1;4;0;5;N/A;N/A;4;;;;;;;;;
+P02;AR;1;Deactivation_1;1.5;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P02;AR;1;Reactivation_2;1.5;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P02;AR;1;Turn_180;14;1;1;N/A;N/A;10;3;N/A;;;;;;;;;
+P02;AR;1;Backward_Drive;4;1;0;0;5;N/A;N/A;5;;;;;;;;;
+P02;AR;2;U-Shape_Parcours;47;1;2;0;N/A;N/A;3;5;;;;;;;;;hard to keep track of the environment
+P02;AR;3;Precision_Drive;N/A;1;0;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P02;AR;3;Axial_Fixation_Straight;3;1;0;0;5;N/A;N/A;5;;;;;;;;;
+P02;AR;3;Axial_Fixation_Turn;8;1;1;N/A;N/A;0;3;N/A;90;1;1;1;17;3;1;;
+P03;VR;1;Activation_1;2;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P03;VR;1;Forward_Drive;17;1;2;0;15;N/A;N/A;4;;;;;;;;;technisch versierte Person für Erstverwendung notwendig, später nicht mehr
+P03;VR;1;Deactivation_1;1.5;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P03;VR;1;Reactivation_2;1.5;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P03;VR;1;Turn_180;15;1;2;N/A;N/A;20;3;N/A;;;;;;;;;
+P03;VR;1;Backward_Drive;6;1;0;0;10;N/A;N/A;4;;;;;;;;;
+P03;VR;2;U-Shape_Parcours;55;1;4;3;N/A;N/A;2;3;;;;;;;;;
+P03;VR;3;Precision_Drive;N/A;1;0;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P03;VR;3;Axial_Fixation_Straight;5;1;0;0;10;N/A;N/A;5;;;;;;;;;
+P03;VR;3;Axial_Fixation_Turn;12;1;1;N/A;N/A;0;4;N/A;75;17;15;2;5;5;2;;
+P03;AR;1;Activation_1;1.5;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P03;AR;1;Forward_Drive;25;1;2;0;0;N/A;N/A;4;;;;;;;;;
+P03;AR;1;Deactivation_1;1.5;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P03;AR;1;Reactivation_2;1.5;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P03;AR;1;Turn_180;12;1;1;N/A;N/A;5;4;N/A;;;;;;;;;
+P03;AR;1;Backward_Drive;5;1;0;0;5;N/A;N/A;5;;;;;;;;;
+P03;AR;2;U-Shape_Parcours;55;1;3;1;N/A;N/A;2;5;;;;;;;;;
+P03;AR;3;Precision_Drive;N/A;1;0;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P03;AR;3;Axial_Fixation_Straight;4;1;0;0;0;N/A;N/A;5;;;;;;;;;
+P03;AR;3;Axial_Fixation_Turn;7;1;0;N/A;N/A;0;4;N/A;75;17;15;2;5;5;2;;
+P04;VR;1;Activation_1;3;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P04;VR;1;Forward_Drive;30;1;5;3;20;N/A;N/A;1;;;;;;;;;
+P04;VR;1;Deactivation_1;2;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P04;VR;1;Reactivation_2;2;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P04;VR;1;Turn_180;25;1;3;N/A;N/A;25;2;N/A;;;;;;;;problems with stable turn;
+P04;VR;1;Backward_Drive;12;1;1;0;20;N/A;N/A;2;;;;;;;;;
+P04;VR;2;U-Shape_Parcours;78;1;12;5;N/A;N/A;1;2;;;;;;;;problems with stable turn;need break
+P04;VR;3;Precision_Drive;N/A;1;0;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P04;VR;3;Axial_Fixation_Straight;10;1;1;0;0;N/A;N/A;3;;;;;;;;;
+P04;VR;3;Axial_Fixation_Turn;15;1;3;N/A;N/A;0;2;N/A;65;18;19;10;6;7;3;;
+P04;AR;1;Activation_1;1.5;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P04;AR;1;Forward_Drive;28;1;4;1;15;N/A;N/A;2;;;;;;;;;
+P04;AR;1;Deactivation_1;1.5;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P04;AR;1;Reactivation_2;1.5;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P04;AR;1;Turn_180;22;1;2;N/A;N/A;10;2;N/A;;;;;;;;;
+P04;AR;1;Backward_Drive;9;1;0;0;10;N/A;N/A;5;;;;;;;;;
+P04;AR;2;U-Shape_Parcours;67;1;6;0;N/A;N/A;2;4;;;;;;;;;
+P04;AR;3;Precision_Drive;N/A;1;0;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P04;AR;3;Axial_Fixation_Straight;7;1;1;0;0;N/A;N/A;4;;;;;;;;;
+P04;AR;3;Axial_Fixation_Turn;5;1;0;N/A;N/A;5;5;N/A;65;15;14;10;6;7;3;;
+P05;VR;1;Activation_1;4;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P05;VR;1;Forward_Drive;32;1;6;1;0;N/A;N/A;2;;;;;;;;;
+P05;VR;1;Deactivation_1;1.5;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P05;VR;1;Reactivation_2;1.5;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P05;VR;1;Turn_180;17;1;2;N/A;N/A;15;2;N/A;;;;;;;;;
+P05;VR;1;Backward_Drive;10;1;1;0;10;N/A;N/A;2;;;;;;;;;
+P05;VR;2;U-Shape_Parcours;63;1;7;1;N/A;N/A;2;3;;;;;;;;;
+P05;VR;3;Precision_Drive;N/A;1;0;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P05;VR;3;Axial_Fixation_Straight;7;1;1;0;5;N/A;N/A;4;;;;;;;;;
+P05;VR;3;Axial_Fixation_Turn;10;1;2;N/A;N/A;0;3;N/A;87;5;3;3;1;1;1;;
+P05;AR;1;Activation_1;1.5;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P05;AR;1;Forward_Drive;25;1;1;0;10;N/A;N/A;3;;;;;;;;seems to be to much careful;
+P05;AR;1;Deactivation_1;1.5;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P05;AR;1;Reactivation_2;1.5;1;N/A;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P05;AR;1;Turn_180;12;1;1;N/A;N/A;10;3;N/A;;;;;;;;;
+P05;AR;1;Backward_Drive;5;1;0;0;0;N/A;N/A;5;;;;;;;;;
+P05;AR;2;U-Shape_Parcours;54;1;3;0;N/A;N/A;3;4;;;;;;;;;
+P05;AR;3;Precision_Drive;N/A;1;0;N/A;N/A;N/A;N/A;N/A;;;;;;;;;
+P05;AR;3;Axial_Fixation_Straight;4;1;0;0;0;N/A;N/A;5;;;;;;;;;
+P05;AR;3;Axial_Fixation_Turn;3;1;0;N/A;N/A;5;5;N/A;87;5;3;3;1;1;1;;
